@@ -1,0 +1,72 @@
+import clsx from "clsx";
+import { useEffect } from "react";
+import { Link } from "react-router";
+import { Dartboard } from "@/components/board/Dartboard";
+import { Scoreboard } from "@/components/game/Scoreboard";
+import { TurnPanel } from "@/components/game/TurnPanel";
+import { UncertainDialog } from "@/components/game/UncertainDialog";
+import { EngineBadge } from "@/components/layout/AppShell";
+import { useBoardDarts, useBoardGeometry } from "@/hooks/useBoard";
+import { useLive } from "@/store/live";
+import { usePrefs } from "@/store/prefs";
+
+/** Full-screen view for a TV/monitor next to the board: large type, no navigation. */
+export default function TvMode() {
+  const game = useLive((s) => s.game);
+  const lastDart = useLive((s) => s.lastDart);
+  const brand = usePrefs((s) => s.brandName);
+  const scale = usePrefs((s) => s.tvScale);
+  const board = useBoardGeometry();
+  const darts = useBoardDarts();
+
+  useEffect(() => {
+    const el = document.documentElement;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "f") (document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen()).catch(() => {});
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const active = game && game.status !== "finished" && game.status !== "abandoned" ? game : game?.state.finished ? game : null;
+  return (
+    <div className="flex h-dvh flex-col gap-4 overflow-hidden bg-[var(--bg)] p-4" style={{ zoom: scale }}>
+      <div className="flex items-center justify-between">
+        <div className="font-display text-2xl font-bold">{brand}</div>
+        <div className="flex items-center gap-3">
+          <EngineBadge />
+          <button className="rounded-lg border border-[var(--border)] px-3 py-1 text-sm" onClick={() => document.documentElement.requestFullscreen().catch(() => {})}>
+            Fullscreen (F)
+          </button>
+          <Link to="/" className="rounded-lg border border-[var(--border)] px-3 py-1 text-sm">Exit</Link>
+        </div>
+      </div>
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+        <div className="relative flex min-h-0 items-center justify-center">
+          <div className="aspect-square h-full max-h-full max-w-full">
+            <Dartboard board={board} markers={darts.map((d) => ({ id: d.id, x_mm: d.x_mm, y_mm: d.y_mm, label: d.label, cov: d.cov, uncertain: d.uncertain }))}
+              highlight={active?.checkout_hint ?? []} />
+          </div>
+          {lastDart && (
+            <div key={lastDart.dart_id} className={clsx("animate-pop absolute top-2 right-2 font-display text-8xl font-black drop-shadow-xl",
+              lastDart.uncertain ? "text-[var(--warn)]" : "text-[var(--accent)]")}>{lastDart.score.label}</div>
+          )}
+        </div>
+        <div className="flex min-h-0 flex-col gap-6 overflow-auto">
+          {active ? (
+            <>
+              <Scoreboard game={active} big />
+              <TurnPanel game={active} big />
+              {active.state.finished && (
+                <div className="text-center font-display text-7xl font-black text-[var(--good)]">{active.winner?.name} wins!</div>
+              )}
+              <UncertainDialog game={active} />
+            </>
+          ) : (
+            <div className="grid flex-1 place-items-center text-center text-3xl text-[var(--muted)]">Waiting for a game…</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

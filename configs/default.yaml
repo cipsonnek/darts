@@ -78,15 +78,19 @@ vision:
 
   detection:
     change_min_delta: 10.0
+    change_edge_gain: 0.35
+    change_min_component_px: 6
     obstruction_area_fraction: 0.08
     dart_length_mm: 150.0
     max_dart_tilt_deg: 65.0
 
   fusion:
     min_cameras: 2
-    line_sigma_px: 0.8
+    line_sigma_px: 1.0
+    line_sigma_floor_mm: 0.3
     tip_sigma_px: 2.0
-    model_sigma_mm: 0.6
+    min_candidate_confidence: 0.15
+    model_sigma_mm: 0.35
 
   scoring:
     confidence_threshold: 0.90

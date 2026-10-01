@@ -200,7 +200,7 @@ class FusionConfig(BaseModel):
     min_line_angle_deg: float = 12.0
     # Unmodelled error (calibration, line bias) added in quadrature to the fused covariance
     # before computing score probabilities. Calibrated with scripts/benchmark.py.
-    model_sigma_mm: float = 0.6
+    model_sigma_mm: float = 0.35
 
 
 class ScoringConfig(BaseModel):

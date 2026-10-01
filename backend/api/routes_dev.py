@@ -125,3 +125,17 @@ def sim_gt(vision=Depends(deps.vision)) -> list[dict]:
 def sim_autocal(vision=Depends(deps.vision)) -> dict:
     _sim(vision.require_simulator)
     return vision.sim_auto_calibrate()
+
+
+# ---------------------------------------------------------------------------- benchmarks
+@router.get("/benchmarks/latest")
+def latest_benchmark() -> dict:
+    """The most recent synthetic benchmark report (scripts/benchmark.py)."""
+    import json
+
+    from backend.settings import ROOT
+
+    p = ROOT / "docs" / "benchmarks" / "latest.json"
+    if not p.exists():
+        raise HTTPException(404, "no benchmark has been run yet (python scripts/benchmark.py)")
+    return json.loads(p.read_text(encoding="utf-8"))

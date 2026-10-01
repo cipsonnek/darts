@@ -230,9 +230,15 @@ class GameService:
                 if det is not None:
                     det.status = "resolved"
                     det.final_label = label.upper()
+                self._relabel(dart_id, label.upper())
             state = self._recompute(game_id)
         self._publish_state(state)
         return state
+
+    def _relabel(self, dart_id: str, label: str) -> None:
+        if self.vision is not None and self.vision.engine is not None:
+            self.vision.engine.relabel_dart(dart_id, label)
+        self.hub.publish("events", "dart_relabelled", {"dart_id": dart_id, "label": label})
 
     def _next_player_id(self, game_id: str) -> str | None:
         st = self._recompute(game_id, persist=False)
@@ -317,6 +323,8 @@ class GameService:
                                      reason="uncertain_choice" if choice == "label" else "manual", x_mm=x_mm, y_mm=y_mm))
                 if final is None and self.vision is not None and self.vision.engine is not None:
                     self.vision.engine.remove_dart(det.id)
+                if final is not None and final != det.label:
+                    self._relabel(det.id, final)
                 if gid is not None and final is not None:
                     self._append(s, gid, "dart", dart_from_label(final, det.id), source="vision",
                                  payload={"resolved_from": det.label}, player_id=det.player_id)

@@ -88,7 +88,7 @@ def main() -> None:
             m = r["metrics"]
             print(f"  {r['condition']:<22} darts={m['darts_thrown']:>3} det={m['detection_rate']} "
                   f"score_acc={m['score_accuracy_all_thrown']} err_mean={(m['impact_error_mm'] or {}).get('mean')} "
-                  f"fp={m['false_positives']} dup={m['duplicates']} ({r['wall_s']:.0f}s)")
+                  f"fp={m['false_positives']} dup={m['duplicates']} ({r['wall_s']:.0f}s)", flush=True)
             results.append(r)
     from vision.evaluation import compute_metrics  # noqa: F401  (pooled metrics below)
 

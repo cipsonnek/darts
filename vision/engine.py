@@ -201,6 +201,16 @@ class VisionEngine:
             self._set_state(EngineState.IDLE, self._last_ts, [])
             return removed
 
+    def relabel_dart(self, dart_id: str, label: str) -> bool:
+        """Record a user correction of a known dart's value (display only; the measured
+        position is kept)."""
+        with self._lock:
+            for d in self.board_state.darts:
+                if d.dart_id == dart_id:
+                    d.label = label
+                    return True
+            return False
+
     def remove_dart(self, dart_id: str) -> bool:
         """Forget one known dart (e.g. a false detection deleted by the user)."""
         with self._lock:
@@ -470,7 +480,14 @@ class VisionEngine:
 
     def _dart_payload(self, f: FusedDart, frames: dict[str, Frame], ts: float) -> dict:
         cfg = self.config
-        cov = f.cov + np.eye(2) * cfg.fusion.model_sigma_mm ** 2
+        # Cameras disagreeing more than their modelled noise inflate the covariance by the
+        # reduced chi-square of the line fit (no redundancy with two cameras: fixed factor).
+        n_obs = len(f.observations)
+        if n_obs >= 3:
+            inflation = max(1.0, f.line_chi2 / (n_obs - 2))
+        else:
+            inflation = 1.7 if n_obs == 2 else 1.0
+        cov = f.cov * inflation + np.eye(2) * cfg.fusion.model_sigma_mm ** 2
         dist = score_distribution(self.board, f.impact, cov, cfg.scoring.monte_carlo_samples, model_sigma_mm=0.0)
         top = dist[0]
         exact = self.board.score(*f.impact)
@@ -480,8 +497,9 @@ class VisionEngine:
         # line agreement alone (any two lines intersect); one camera is a weak estimate.
         n = len(f.observations)
         cam_factor = {1: 0.5, 2: 0.97}.get(n, 1.0)
-        cand_conf = float(min(o.candidate.confidence for o in f.observations))
-        detection_conf = float(cam_factor * (0.7 + 0.3 * cand_conf) * (0.6 + 0.4 * f.line_consistency))
+        best_two = sorted((o.candidate.confidence for o in f.observations), reverse=True)[:2]
+        cand_conf = float(np.mean(best_two))
+        detection_conf = float(cam_factor * (0.75 + 0.25 * cand_conf))
         impact_conf = float(1.0 - math.exp(-(2.0 ** 2) / (2.0 * sigma * sigma)))
         score_conf = float(top.probability)
         overall = detection_conf * score_conf
@@ -515,6 +533,7 @@ class VisionEngine:
             "axis": None if f.axis is None else [round(float(v), 4) for v in f.axis],
             "tilt_deg": None if f.tilt_deg is None else round(f.tilt_deg, 2),
             "consistency": round(f.line_consistency, 4),
+            "covariance_inflation": round(inflation, 3),
             "frame_timestamps": {cid: fr.timestamp for cid, fr in frames.items()},
         }
 
