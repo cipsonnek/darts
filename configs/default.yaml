@@ -1,0 +1,113 @@
+# DartSense default configuration.
+#
+# Machine-specific overrides go in configs/local.yaml (ignored by git) or in a file named by
+# the DARTSENSE_CONFIG environment variable. Settings changed in the web UI are stored in
+# data/runtime.yaml and applied on top of these files.
+
+mode: live            # live | simulator (synthetic cameras for development and demos)
+
+server:
+  host: 127.0.0.1
+  port: 8000
+  # Origins allowed to call the API from a browser (the bundled UI is same-origin).
+  cors_origins:
+    - http://localhost:5173
+    - http://127.0.0.1:5173
+  # Administrative endpoints (calibration, camera/config changes, deleting data):
+  #   localhost - allowed without a token from this machine, token required from the LAN
+  #   token     - token always required
+  #   off       - no protection (only on an isolated network)
+  admin_auth: localhost
+  admin_token: null    # null: generated on first start, stored in data/admin_token.txt
+  serve_frontend: true # serve frontend/dist at /
+
+database:
+  url: sqlite:///data/dartsense.db   # PostgreSQL: postgresql+psycopg://user:pass@host/db
+
+logging:
+  level: INFO
+  directory: logs
+  json: true
+  event_retention_days: 30
+
+vision:
+  calibration_dir: data/calibration
+
+  board:
+    inner_bull_radius_mm: 6.35
+    outer_bull_radius_mm: 15.9
+    triple_inner_radius_mm: 99.0
+    triple_outer_radius_mm: 107.0
+    double_inner_radius_mm: 162.0
+    double_outer_radius_mm: 170.0
+    board_radius_mm: 225.5
+    wire_width_mm: 1.2
+    first_sector_ring_color: red
+
+  cameras:
+    - id: cam1
+      name: Camera 1
+      source: {type: opencv, device: 0, api: auto, fourcc: MJPG}
+      width: 1280
+      height: 720
+      fps: 30
+      auto_exposure: false
+      exposure: null
+      gain: null
+      mount: {azimuth_deg: 0, description: "top"}
+    - id: cam2
+      name: Camera 2
+      source: {type: opencv, device: 1, api: auto, fourcc: MJPG}
+      width: 1280
+      height: 720
+      fps: 30
+      auto_exposure: false
+      mount: {azimuth_deg: 120, description: "lower right"}
+    - id: cam3
+      name: Camera 3
+      source: {type: opencv, device: 2, api: auto, fourcc: MJPG}
+      width: 1280
+      height: 720
+      fps: 30
+      auto_exposure: false
+      mount: {azimuth_deg: 240, description: "lower left"}
+
+  motion:
+    analysis_width: 320
+    settle_time_ms: 280
+
+  detection:
+    change_min_delta: 10.0
+    obstruction_area_fraction: 0.08
+    dart_length_mm: 150.0
+    max_dart_tilt_deg: 65.0
+
+  fusion:
+    min_cameras: 2
+    line_sigma_px: 0.8
+    tip_sigma_px: 2.0
+    model_sigma_mm: 0.6
+
+  scoring:
+    confidence_threshold: 0.90
+    max_alternatives: 3
+
+  tracking:
+    duplicate_radius_mm: 4.0
+    max_darts_on_board: 12
+
+  validation:
+    enabled: true
+    interval_s: 30
+
+  performance:
+    gpu_enabled: false
+    engine_tick_hz: 60
+    stream_default_width: 640
+    stream_default_fps: 12
+    stream_jpeg_quality: 75
+
+  recording:
+    directory: recordings
+    image_format: jpg
+    jpeg_quality: 95

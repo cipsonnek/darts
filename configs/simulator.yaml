@@ -1,0 +1,38 @@
+# Developer simulator: three synthetic cameras rendering a simulated board.
+# Start with:  DARTSENSE_CONFIG=configs/simulator.yaml python -m backend
+# The UI shows a "SIMULATOR" badge; synthetic cameras are never mixed with real ones.
+
+mode: simulator
+
+database:
+  url: sqlite:///data/dartsense-sim.db
+
+vision:
+  calibration_dir: data/calibration-sim
+  recording:
+    directory: recordings-sim
+  cameras:
+    - id: cam1
+      name: Sim camera 1
+      source: {type: synthetic}
+      width: 1280
+      height: 720
+      fps: 15
+      mount: {azimuth_deg: 0, description: "top"}
+    - id: cam2
+      name: Sim camera 2
+      source: {type: synthetic}
+      width: 1280
+      height: 720
+      fps: 15
+      mount: {azimuth_deg: 120, description: "lower right"}
+    - id: cam3
+      name: Sim camera 3
+      source: {type: synthetic}
+      width: 1280
+      height: 720
+      fps: 15
+      mount: {azimuth_deg: 240, description: "lower left"}
+  simulator:
+    seed: 1
+    lighting: neutral

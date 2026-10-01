@@ -1,0 +1,37 @@
+[project]
+name = "dartsense"
+version = "1.0.0"
+description = "Three-camera automatic dart scoring: vision engine, game engine, API and web UI"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26,<2.3",
+    "opencv-python-headless>=4.10",
+    "scipy>=1.11",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "psutil>=5.9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "httpx>=0.27"]
+postgres = ["psycopg[binary]>=3.1"]
+onnx = ["onnxruntime>=1.18"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["vision*", "backend*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "slow: long-running simulation tests (deselect with -m 'not slow')",
+]
+filterwarnings = ["ignore::DeprecationWarning"]
