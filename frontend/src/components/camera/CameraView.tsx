@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
-import { streamUrl } from "@/lib/api";
+import { snapshotUrl } from "@/lib/api";
 import type { CameraHealth } from "@/lib/types";
 
 interface Props {
@@ -16,21 +16,56 @@ interface Props {
   children?: React.ReactNode; // overlay content (absolute positioned)
 }
 
-/** Live MJPEG stream. Server-side encoding at the requested size/fps; reconnects on error. */
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Live camera view, fetched frame by frame. Not an MJPEG stream on purpose: a stream holds
+ *  one of the browser's ~6 connections per host for as long as it is open (and browsers do
+ *  not always close it when the image unmounts), so a few camera views starved every other
+ *  request and froze the UI. Short requests cannot pile up. */
 export function CameraView({ cameraId, name, overlay = [], view = "raw", width = 640, fps, health, className, onImageClick, children }: Props) {
-  const [nonce, setNonce] = useState(0);
+  const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
-  const src = streamUrl(cameraId, { overlay, width, fps, view }) + `&n=${nonce}`;
+  const overlayKey = overlay.join(",");
 
   useEffect(() => {
-    if (!failed) return;
-    const t = setTimeout(() => {
-      setFailed(false);
-      setNonce((n) => n + 1);
-    }, 2000);
-    return () => clearTimeout(t);
-  }, [failed]);
+    let stop = false;
+    let current: string | null = null;
+    const ctrl = new AbortController();
+    const period = 1000 / Math.max(0.5, fps ?? 10);
+    (async () => {
+      while (!stop) {
+        if (document.hidden) {
+          await sleep(500);
+          continue;
+        }
+        const t0 = performance.now();
+        try {
+          const url = snapshotUrl(cameraId, { overlay: overlayKey ? overlayKey.split(",") : [], width, view }, Date.now());
+          const res = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
+          if (!res.ok) throw new Error(String(res.status));
+          const blob = await res.blob();
+          if (stop) break;
+          const next = URL.createObjectURL(blob);
+          setSrc(next);
+          setFailed(false);
+          if (current) URL.revokeObjectURL(current);
+          current = next;
+        } catch {
+          if (stop) break;
+          setFailed(true);
+          await sleep(2000);
+          continue;
+        }
+        await sleep(Math.max(0, period - (performance.now() - t0)));
+      }
+    })();
+    return () => {
+      stop = true;
+      ctrl.abort();
+      if (current) URL.revokeObjectURL(current);
+    };
+  }, [cameraId, overlayKey, width, fps, view]);
 
   function click(e: React.MouseEvent<HTMLImageElement>) {
     const img = imgRef.current;
@@ -44,11 +79,11 @@ export function CameraView({ cameraId, name, overlay = [], view = "raw", width =
 
   return (
     <div className={clsx("relative overflow-hidden rounded-xl border border-[var(--border)] bg-black", className)}>
-      {!failed ? (
+      {src && !failed ? (
         <img ref={imgRef} src={src} alt={`Camera ${cameraId}`} className={clsx("block h-auto w-full", onImageClick && "cursor-crosshair")}
-          onError={() => setFailed(true)} onClick={click} draggable={false} />
+          onClick={click} draggable={false} />
       ) : (
-        <div className="grid aspect-video place-items-center text-sm text-[var(--muted)]">Reconnecting to {cameraId}…</div>
+        <div className="grid aspect-video place-items-center text-sm text-[var(--muted)]">{failed ? `Reconnecting to ${cameraId}…` : "Loading…"}</div>
       )}
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/70 to-transparent px-3 py-1.5 text-xs text-white">
         <span className="font-semibold">{name ?? cameraId}</span>
