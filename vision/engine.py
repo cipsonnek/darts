@@ -73,6 +73,8 @@ class CameraContext:
     last_candidates: list[DartCandidate] = field(default_factory=list)
     last_motion_fraction: float = 0.0
     validation: ValidationResult | None = None
+    # Frames since the scene became still (averaged for analysis).
+    still_frames: deque = field(default_factory=deque)
 
 
 @dataclass
@@ -193,11 +195,12 @@ class VisionEngine:
         board reference (use when the board is actually empty)."""
         with self._lock:
             removed = self.board_state.clear()
-            for ctx in self.cameras.values():
-                if ctx.last_frame is not None:
-                    ctx.reference = ctx.last_frame.image.copy()
-                    if mark_empty:
-                        ctx.empty = ctx.last_frame.image.copy()
+            last = self._averaged({cid: c.last_frame for cid, c in self.cameras.items() if c.last_frame is not None})
+            for cid, f in last.items():
+                ctx = self.cameras[cid]
+                ctx.reference = f.image.copy()
+                if mark_empty:
+                    ctx.empty = f.image.copy()
             self._set_state(EngineState.IDLE, self._last_ts, [])
             return removed
 
@@ -256,6 +259,15 @@ class VisionEngine:
                 sample = ctx.motion.update(frame.image)
                 ctx.last_motion_fraction = sample.fraction
                 moving |= sample.moving
+            n_avg = self.config.motion.settle_average_frames
+            for cid, frame in frames.items():
+                still = self.cameras[cid].still_frames
+                if moving:
+                    still.clear()
+                else:
+                    still.append(frame.image)
+                    while len(still) > n_avg:
+                        still.popleft()
             if moving:
                 self._last_motion_ts = ts
                 self._still_since = None
@@ -278,7 +290,7 @@ class VisionEngine:
                 self._set_state(EngineState.PROCESSING, ts, events)
                 tp = time.perf_counter()
                 try:
-                    self._analyse_settled(frames, ts, events)
+                    self._analyse_settled(self._averaged(frames), ts, events)
                 except Exception as exc:  # noqa: BLE001 - keep running; report
                     self.stats.errors += 1
                     log.exception("settled-scene analysis failed")
@@ -293,13 +305,29 @@ class VisionEngine:
         return any(c.reference is not None for c in self.cameras.values() if c.model is not None) or \
             (not self.calibrated_cameras and any(c.reference is not None for c in self.cameras.values()))
 
-    def _set_baseline(self, ts: float, events: list[VisionEvent]) -> None:
-        for ctx in self.cameras.values():
-            if ctx.last_frame is None:
+    def _averaged(self, frames: dict[str, Frame]) -> dict[str, Frame]:
+        """The settled frames, each replaced by the mean of its camera's still frames."""
+        out = {}
+        for cid, f in frames.items():
+            still = self.cameras[cid].still_frames
+            if len(still) < 2 or any(s.shape != f.image.shape for s in still):
+                out[cid] = f
                 continue
-            ctx.reference = ctx.last_frame.image.copy()
+            acc = np.zeros(f.image.shape, np.float32)
+            for s in still:
+                acc += s
+            img = np.clip(acc / len(still) + 0.5, 0, 255).astype(np.uint8)
+            out[cid] = Frame(f.camera_id, img, f.timestamp, f.index, {**f.meta, "averaged": len(still)})
+        return out
+
+    def _set_baseline(self, ts: float, events: list[VisionEvent]) -> None:
+        last = self._averaged({cid: c.last_frame for cid, c in self.cameras.items() if c.last_frame is not None})
+        for cid, ctx in self.cameras.items():
+            if cid not in last:
+                continue
+            ctx.reference = last[cid].image.copy()
             if self.config.tracking.assume_empty_on_start and ctx.empty is None:
-                ctx.empty = ctx.last_frame.image.copy()
+                ctx.empty = last[cid].image.copy()
         events.append(self._emit(EventType.BASELINE, ts, {"cameras": [c.camera_id for c in self.cameras.values()
                                                                      if c.reference is not None]}))
         self._set_state(EngineState.IDLE, ts, events)

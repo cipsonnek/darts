@@ -225,6 +225,10 @@ def validate(f: FusedDart, cameras: dict[str, CameraModel], cfg: FusionConfig, m
     if float(np.hypot(*f.impact)) > board_radius_mm + 10.0:
         return "impact outside the board"
     if len(f.observations) == 1:
+        # With several cameras around the board a real dart is seen by at least two; a
+        # change only one camera sees is noise, a reflection or a dart it saw before.
+        if len(cameras) >= cfg.min_cameras > 1:
+            return "seen by one camera only"
         c = f.observations[0].candidate
         if c.confidence < 0.6 or not c.tip_visible:
             return "single weak observation"

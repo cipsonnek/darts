@@ -140,6 +140,10 @@ class MotionConfig(BaseModel):
     motion_area_fraction: float = 0.0004
     # The scene must be motion-free for this long before it counts as settled.
     settle_time_ms: int = 280
+    # The settled scene is analysed as the mean of up to this many still frames per camera:
+    # averaging N frames divides sensor and compression noise by ~sqrt(N), which matters
+    # a lot for webcams running high gain in dim rooms.
+    settle_average_frames: int = Field(8, ge=1)
     # Upper bound so a never-settling scene (flicker) is still processed eventually.
     max_wait_ms: int = 4000
 

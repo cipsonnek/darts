@@ -73,9 +73,16 @@ def test_correspondence_with_two_darts(sim_rig) -> None:
 def test_single_camera_is_weak(sim_rig) -> None:
     p0, a = _dart((0.0, 103.0))
     cands = {"cam1": [_cand(sim_rig["cam1"], p0, a, "cam1")]}
-    res = fuse(sim_rig, cands, FusionConfig())
+    # Only one camera calibrated: a single view is accepted but poorly constrained.
+    res = fuse({"cam1": sim_rig["cam1"]}, cands, FusionConfig())
     assert len(res) == 1
     assert res[0].sigma_mm > 1.0  # poorly constrained along the viewing direction
+
+
+def test_single_camera_rejected_when_others_available(sim_rig) -> None:
+    p0, a = _dart((0.0, 103.0))
+    cands = {"cam1": [_cand(sim_rig["cam1"], p0, a, "cam1")]}
+    assert fuse(sim_rig, cands, FusionConfig()) == []
 
 
 def test_score_distribution_on_wire() -> None:

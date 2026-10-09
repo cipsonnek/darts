@@ -104,19 +104,187 @@ def _fit_outer_ellipse_pts(ring_mask: np.ndarray, min_area: float) -> tuple[tupl
     order = np.lexsort((-rad, bins))
     first = np.ones(len(order), dtype=bool)
     first[1:] = bins[order][1:] != bins[order][:-1]
+    all_pts = pts
     pts = pts[order[first]]
     if len(pts) < 20:
         return None
-    ellipse = cv2.fitEllipse(pts.astype(np.float32))
-    keep = np.ones(len(pts), dtype=bool)
+    # Real boards often carry red/green printing outside the scoring area (logos, rim),
+    # which wins "outermost" in some directions. Consensus fitting (RANSAC over the
+    # per-direction outermost points) ignores those directions.
+    rng = np.random.default_rng(0)
+    best, best_score = None, -1
+    p32 = pts.astype(np.float32)
+    for _ in range(400):
+        sample = p32[rng.choice(len(p32), size=6, replace=False)]
+        try:
+            e = cv2.fitEllipse(sample)
+        except cv2.error:
+            continue
+        (_, _), (ew, eh), _ = e
+        if not (np.isfinite(ew) and np.isfinite(eh)) or min(ew, eh) < 10:
+            continue
+        score = int(np.count_nonzero(np.abs(_ellipse_radius(pts, e) - 1.0) < 0.02))
+        if score > best_score:
+            best, best_score = e, score
+    if best is None or best_score < 20:
+        return None
+    ellipse = best
+    keep = np.ones(len(all_pts), dtype=bool)
     for _ in range(3):
-        rho = _ellipse_radius(pts, ellipse)
-        k2 = np.abs(rho - 1.0) < 0.02
+        # Refit on every contour point near the ellipse (also points hidden behind clutter).
+        k2 = np.abs(_ellipse_radius(all_pts, ellipse) - 1.0) < 0.02
         if k2.sum() < 20:
             break
         keep = k2
-        ellipse = cv2.fitEllipse(pts[keep].astype(np.float32))
-    return ellipse, pts[keep]
+        ellipse = cv2.fitEllipse(all_pts[keep].astype(np.float32))
+    return ellipse, all_pts[keep]
+
+
+def _ransac_ellipse(cands: np.ndarray, refine_pts: np.ndarray, rng: np.random.Generator,
+                    iterations: int = 400) -> tuple[tuple, np.ndarray] | None:
+    """Consensus ellipse through candidate points, refined on nearby refine_pts."""
+    if len(cands) < 20:
+        return None
+    best, best_score = None, -1
+    c32 = cands.astype(np.float32)
+    for _ in range(iterations):
+        sample = c32[rng.choice(len(c32), size=6, replace=False)]
+        try:
+            e = cv2.fitEllipse(sample)
+        except cv2.error:
+            continue
+        (_, _), (ew, eh), _ = e
+        if not (np.isfinite(ew) and np.isfinite(eh)) or min(ew, eh) < 10:
+            continue
+        score = int(np.count_nonzero(np.abs(_ellipse_radius(cands, e) - 1.0) < 0.02))
+        if score > best_score:
+            best, best_score = e, score
+    if best is None or best_score < 20:
+        return None
+    ellipse = best
+    keep = np.abs(_ellipse_radius(refine_pts, ellipse) - 1.0) < 0.02
+    for _ in range(3):
+        k2 = np.abs(_ellipse_radius(refine_pts, ellipse) - 1.0) < 0.02
+        if k2.sum() < 20:
+            break
+        keep = k2
+        ellipse = cv2.fitEllipse(refine_pts[keep].astype(np.float32))
+    return ellipse, refine_pts[keep]
+
+
+def _ellipse_layers(ring_mask: np.ndarray, min_area: float, max_layers: int = 4) -> list[tuple[tuple, np.ndarray]]:
+    """Concentric ellipse candidates from the outside in. Each layer is a consensus fit
+    through the outermost remaining coloured contour point in every direction; the next
+    layer only uses points inside the previous ellipse. On a board with a red rim stripe
+    the layers are typically: rim, double ring, triple ring."""
+    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+    closed = cv2.morphologyEx(ring_mask, cv2.MORPH_CLOSE, k)
+    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    contours = [c for c in contours if cv2.contourArea(c) >= 12]
+    if not contours or sum(cv2.contourArea(c) for c in contours) < min_area:
+        return []
+    remaining = np.concatenate([c.reshape(-1, 2) for c in contours]).astype(np.float64)
+    rng = np.random.default_rng(0)
+    layers: list[tuple[tuple, np.ndarray]] = []
+    for _ in range(max_layers):
+        if len(remaining) < 40:
+            break
+        c = remaining.mean(axis=0)
+        d = remaining - c
+        ang = np.arctan2(d[:, 1], d[:, 0])
+        rad = np.hypot(d[:, 0], d[:, 1])
+        bins = ((ang + np.pi) / (2 * np.pi) * 720).astype(int) % 720
+        order = np.lexsort((-rad, bins))
+        first = np.ones(len(order), dtype=bool)
+        first[1:] = bins[order][1:] != bins[order][:-1]
+        res = _ransac_ellipse(remaining[order[first]], remaining, rng)
+        if res is None:
+            break
+        layers.append(res)
+        remaining = remaining[_ellipse_radius(remaining, res[0]) < 0.985]
+    return layers
+
+
+def _blob_ring_layers(red: np.ndarray, green: np.ndarray, max_layers: int = 3,
+                      iterations: int = 3000) -> list[tuple[tuple, np.ndarray]]:
+    """Ring candidates from segment blobs. The double and triple rings each consist of ~20
+    separate red/green segments whose centroids lie on one ellipse, which logos, a coloured
+    rim stripe or clutter do not imitate. Returns the outer-edge ellipse of every ring found
+    (with its edge points), largest first."""
+    blobs: list[tuple[np.ndarray, np.ndarray, int]] = []  # centroid, contour points, colour
+    for colour, mask in ((RED, red), (GREEN, green)):
+        n, lab, stats, cents = cv2.connectedComponentsWithStats(mask, connectivity=8)
+        for i in range(1, n):
+            if stats[i, cv2.CC_STAT_AREA] < 8:
+                continue
+            x, y, w, h = stats[i, :4]
+            sub = (lab[y:y + h, x:x + w] == i).astype(np.uint8)
+            cs, _ = cv2.findContours(sub, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+            pts = np.concatenate([c.reshape(-1, 2) for c in cs]).astype(np.float64) + (x, y)
+            blobs.append((cents[i], pts, colour))
+    if len(blobs) < 10:
+        return []
+    cents = np.array([b[0] for b in blobs], dtype=np.float64)
+    colours = np.array([b[2] for b in blobs])
+    # Ring segments are big blobs; rim stripes and noise break into many small ones.
+    areas = np.array([cv2.contourArea(b[1].astype(np.float32)) + len(b[1]) for b in blobs])
+    alive = np.ones(len(blobs), dtype=bool)
+    rng = np.random.default_rng(0)
+    layers: list[tuple[tuple, np.ndarray]] = []
+    for _ in range(max_layers):
+        idx = np.flatnonzero(alive)
+        if len(idx) < 10 or np.count_nonzero(areas[idx]) < 5:
+            break
+        c32 = cents[idx].astype(np.float32)
+        best, best_score = None, 0
+        for _ in range(iterations):
+            try:
+                e = cv2.fitEllipse(c32[rng.choice(len(idx), size=5, replace=False, p=areas[idx] / areas[idx].sum())])
+            except cv2.error:
+                continue
+            (_, _), (ew, eh), _ = e
+            if not (np.isfinite(ew) and np.isfinite(eh)) or min(ew, eh) < 20 or max(ew, eh) > 8 * min(ew, eh):
+                continue
+            inl = np.abs(_ellipse_radius(cents[idx], e) - 1.0) < 0.05
+            k = int(inl.sum())
+            if k < 10:
+                continue
+            score = float(areas[idx][inl].sum())
+            if score <= best_score:
+                continue
+            # A ring alternates colours and has segments all the way round.
+            if min((colours[idx][inl] == RED).sum(), (colours[idx][inl] == GREEN).sum()) < 0.3 * k:
+                continue
+            (ex, ey), _, _ = e
+            ang = np.arctan2(cents[idx][inl, 1] - ey, cents[idx][inl, 0] - ex)
+            if len(np.unique(((ang + np.pi) / (2 * np.pi) * 12).astype(int) % 12)) < 10:
+                continue
+            best, best_score = e, score
+        if best is None:
+            break
+        for _ in range(2):
+            inl = np.abs(_ellipse_radius(cents[idx], best) - 1.0) < 0.05
+            refit = cv2.fitEllipse(cents[idx][inl].astype(np.float32))
+            if np.count_nonzero(np.abs(_ellipse_radius(cents[idx], refit) - 1.0) < 0.05) < inl.sum():
+                break
+            best = refit
+        members = idx[np.abs(_ellipse_radius(cents[idx], best) - 1.0) < 0.05]
+        alive[members] = False
+        # Outer edge of the ring: outermost member contour point in every direction.
+        pts = np.concatenate([blobs[i][1] for i in members])
+        (cx, cy), _, _ = best
+        ang = np.arctan2(pts[:, 1] - cy, pts[:, 0] - cx)
+        rho = _ellipse_radius(pts, best)
+        bins = ((ang + np.pi) / (2 * np.pi) * 720).astype(int) % 720
+        order = np.lexsort((-rho, bins))
+        first = np.ones(len(order), dtype=bool)
+        first[1:] = bins[order][1:] != bins[order][:-1]
+        outer = pts[order[first]]
+        res = _ransac_ellipse(outer, outer, rng)
+        if res is not None:
+            layers.append(res)
+    layers.sort(key=lambda l: -l[0][1][0] * l[0][1][1])
+    return layers
 
 
 def _ellipse_radius(pts: np.ndarray, ellipse: tuple) -> np.ndarray:
@@ -199,27 +367,34 @@ class BoardDetector:
         h, w = image_bgr.shape[:2]
         red, green = segment_ring_colors(image_bgr, self.cfg)
         ring = cv2.bitwise_or(red, green)
-        fit = _fit_outer_ellipse_pts(ring, self.cfg.min_ring_area_fraction * w * h)
-        ellipse, self._edge_pts = (None, None) if fit is None else fit
-        if ellipse is None:
+        layers = _ellipse_layers(ring, self.cfg.min_ring_area_fraction * w * h)
+        layers = sorted(layers + _blob_ring_layers(red, green), key=lambda l: -l[0][1][0] * l[0][1][1])
+        if not layers:
             return BoardDetection(False, "no red/green double ring found — is the whole board visible and lit?")
         rr = self.board.ring_radii
         mid_scale = ((rr["double_inner"] + rr["double_outer"]) / 2) / rr["double_outer"]
+        inner_scale = rr["double_inner"] / rr["double_outer"]
         n_samples = 2880
         params = np.linspace(0, 2 * np.pi, n_samples, endpoint=False)
-        pts = _ellipse_points(ellipse, params, mid_scale)
-        # The far side of the band can be only 2-3 px thick: vote across the band.
-        inner_scale = rr["double_inner"] / rr["double_outer"]
-        votes = np.stack([_labels_at(red, green, _ellipse_points(ellipse, params, s))
-                          for s in np.linspace(inner_scale - 0.01, 0.995, 9)])
-        n_red = (votes == RED).sum(0)
-        n_green = (votes == GREEN).sum(0)
-        labels = np.where(n_red > n_green, RED, np.where(n_green > n_red, GREEN, 0)).astype(np.int8)
-        labels[(votes == -1).any(0)] = -1
+        n = self.board.n_sectors
+        # Score every concentric candidate by the alternating red/green pattern a ring band
+        # must show; the double ring is the largest candidate with (nearly) the best score.
+        scored = []
+        for ellipse, edge in layers:
+            # The far side of the band can be only 2-3 px thick: vote across the band.
+            votes = np.stack([_labels_at(red, green, _ellipse_points(ellipse, params, s))
+                              for s in np.linspace(inner_scale - 0.01, 0.995, 9)])
+            n_red = (votes == RED).sum(0)
+            n_green = (votes == GREEN).sum(0)
+            lab = np.where(n_red > n_green, RED, np.where(n_green > n_red, GREEN, 0)).astype(np.int8)
+            lab[(votes == -1).any(0)] = -1
+            tr = _transitions(lab, min_run=max(3, n_samples // 400))
+            count = len(tr) if len(tr) <= n else max(0, 2 * n - len(tr))
+            scored.append((ellipse, edge, lab, tr, count))
+        best_count = max(s[4] for s in scored)
+        ellipse, self._edge_pts, labels, trans, _ = next(s for s in scored if s[4] >= max(6, 0.7 * best_count))
         if (labels == -1).mean() > 0.02:
             return BoardDetection(False, "the double ring is partly outside the image", ellipse)
-        trans = _transitions(labels, min_run=max(3, n_samples // 400))
-        n = self.board.n_sectors
         if len(trans) < 6:
             return BoardDetection(False, f"found only {len(trans)} colour transitions on the double ring "
                                   "(remove darts and obstructions, check lighting)", ellipse)
