@@ -77,3 +77,26 @@ def test_engine_requires_settling_before_baseline() -> None:
     for i in range(3, 12):
         eng.process_frameset({"c": Frame("c", img, i * 0.05, i)})
     assert eng.state == EngineState.IDLE
+
+
+def test_permanent_scene_change_is_adopted_not_obstruction_forever() -> None:
+    # e.g. the room lights are switched on: a large, perfectly still change.
+    r = _runner(8)
+    res = r.run(Scenario("idle", [], 2.0))
+    eng = r.engine
+    last = {cid: ctx.last_frame for cid, ctx in eng.cameras.items()}
+    t0 = max(f.timestamp for f in last.values())
+    changed = {}
+    for cid, f in last.items():
+        img = f.image.copy()
+        h, w = img.shape[:2]
+        img[h // 4: 3 * h // 4, w // 4: 3 * w // 4] = (40, 90, 160)
+        changed[cid] = img
+    events = []
+    for i in range(1, int(12 * 15)):
+        events += eng.process_frameset({cid: Frame(cid, changed[cid], t0 + i / 15, 10_000 + i) for cid in changed})
+    rebased = [e for e in events if e.type == EventType.BASELINE and e.data.get("reason") == "scene_changed"]
+    assert rebased, [e.type for e in events]
+    assert not [e for e in events if e.type == EventType.DART]
+    assert eng.state == EngineState.IDLE
+    assert res is not None

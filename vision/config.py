@@ -229,6 +229,9 @@ class TrackingConfig(BaseModel):
     # At start-up the board is assumed empty and the first settled frames become the
     # empty-board reference ("Reset board" in the UI does the same later).
     assume_empty_on_start: bool = True
+    # An "obstruction" that stays perfectly still this long is not a person but a changed
+    # scene (lights switched on, curtains, board nudged): adopt it as the new reference.
+    obstruction_rebaseline_s: float = 8.0
 
 
 class ValidationConfig(BaseModel):

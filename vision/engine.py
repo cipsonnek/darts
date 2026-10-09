@@ -352,6 +352,9 @@ class VisionEngine:
         # 1. Obstruction: something large (hand, body) is still in front of the board.
         obstructed = [cid for cid, ch in changes.items() if ch.added_fraction > cfg.detection.obstruction_area_fraction]
         if len(obstructed) >= max(1, math.ceil(len(cams) / 2)):
+            if self._still_since is not None and ts - self._still_since >= cfg.tracking.obstruction_rebaseline_s:
+                self._rebaseline(frames, cams, ts, events, obstructed)
+                return
             self.stats.obstructions += 1
             if not self._obstruction_reported:
                 events.append(self._emit(EventType.OBSTRUCTION, ts, {
@@ -394,6 +397,20 @@ class VisionEngine:
         if len(self.board_state) == 0 and removed:
             self._refresh_empty(frames, cams)
             events.append(self._emit(EventType.BOARD_CLEAR, ts, {}))
+        self._set_state(EngineState.IDLE, ts, events)
+
+    def _rebaseline(self, frames: dict[str, Frame], cams: dict[str, CameraContext], ts: float,
+                    events: list[VisionEvent], obstructed: list[str]) -> None:
+        """The scene changed for good (lighting): start again from the current view. The
+        empty-board reference is only replaced when no darts are known to be in the board."""
+        self._refresh_references(frames)
+        if len(self.board_state) == 0:
+            for cid in cams:
+                self.cameras[cid].empty = frames[cid].image.copy()
+        self._obstruction_reported = False
+        log.warning("scene changed while still (lighting?) - new reference adopted", extra={"cameras": obstructed})
+        events.append(self._emit(EventType.BASELINE, ts, {
+            "cameras": list(cams), "reason": "scene_changed", "empty_refreshed": len(self.board_state) == 0}))
         self._set_state(EngineState.IDLE, ts, events)
 
     def _refresh_references(self, frames: dict[str, Frame]) -> None:
