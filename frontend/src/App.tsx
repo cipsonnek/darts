@@ -14,6 +14,15 @@ const Detection = lazy(() => import("@/pages/Detection"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const Developer = lazy(() => import("@/pages/Developer"));
 const TvMode = lazy(() => import("@/pages/TvMode"));
+const OperatorShell = lazy(() => import("@/operator/OperatorShell").then((m) => ({ default: m.OperatorShell })));
+const OpDashboard = lazy(() => import("@/operator/pages/Dashboard"));
+const OpVenues = lazy(() => import("@/operator/pages/Venues"));
+const OpVenueDetail = lazy(() => import("@/operator/pages/VenueDetail"));
+const OpBoards = lazy(() => import("@/operator/pages/Boards"));
+const OpBoardDetail = lazy(() => import("@/operator/pages/BoardDetail"));
+const OpStats = lazy(() => import("@/operator/pages/Stats"));
+const OpSettlements = lazy(() => import("@/operator/pages/Settlements"));
+const OpTickets = lazy(() => import("@/operator/pages/Tickets"));
 
 function Loading() {
   return <div className="flex h-60 items-center justify-center"><Spinner /></div>;
@@ -25,6 +34,16 @@ export default function App() {
       <Suspense fallback={<Loading />}>
         <Routes>
           <Route path="/tv" element={<TvMode />} />
+          <Route path="/operator" element={<OperatorShell />}>
+            <Route index element={<OpDashboard />} />
+            <Route path="venues" element={<OpVenues />} />
+            <Route path="venues/:id" element={<OpVenueDetail />} />
+            <Route path="boards" element={<OpBoards />} />
+            <Route path="boards/:id" element={<OpBoardDetail />} />
+            <Route path="stats" element={<OpStats />} />
+            <Route path="settlements" element={<OpSettlements />} />
+            <Route path="tickets" element={<OpTickets />} />
+          </Route>
           <Route element={<AppShell />}>
             <Route index element={<Play />} />
             <Route path="games" element={<Games />} />

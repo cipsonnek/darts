@@ -49,6 +49,25 @@ network (`http://<this-pc-ip>:8000`); Windows may ask to allow Python through th
 Settings for one machine (camera indices, ports) can also go in `configs/local.yaml`, which
 overrides `configs/default.yaml` and is not committed.
 
+## Operator panel (fleet of boards in venues)
+
+The operator's central server keeps venues (bars, arcades) with their location and terms
+(price per game, venue share), every installed board with its health, usage statistics,
+monthly settlements and service tickets. It is the same backend in `central` mode, without
+cameras:
+
+```powershell
+.venv\Scripts\python.exe -m backend --central            # http://localhost:8100/operator
+.venv\Scripts\python.exe -m backend.fleet_demo           # optional: demo venues, boards and history
+.venv\Scripts\python.exe -m backend.fleet_demo --live    # keep the demo boards online while it runs
+```
+
+Register a board under **Tarcze → Dodaj tarczę** and paste the generated `fleet:` block into
+that board's `configs/local.yaml`. The board then sends a heartbeat every minute and a summary
+of every finished game; games played offline are sent when the connection is back.
+`python -m backend.fleet_demo --link-simulator` does this for the local simulator.
+In development `npm run dev` proxies `/api/fleet` to the central server on port 8100.
+
 ## Development
 
 ```powershell

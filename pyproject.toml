@@ -14,6 +14,8 @@ dependencies = [
     "sqlalchemy>=2.0",
     "alembic>=1.13",
     "psutil>=5.9",
+    # IANA time zones for fleet statistics (Windows has no system tz database)
+    "tzdata>=2024.1",
 ]
 
 [project.optional-dependencies]

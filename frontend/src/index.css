@@ -95,3 +95,20 @@ textarea {
     animation: none;
   }
 }
+
+/* Leaflet maps (operator panel): keep controls under modals, dark tiles in dark themes. */
+.leaflet-container {
+  isolation: isolate;
+  font-family: var(--font-sans);
+}
+:root:not([data-theme="light"]) .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88);
+}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--surface);
+  color: var(--text);
+}
+.leaflet-container a {
+  color: var(--accent);
+}

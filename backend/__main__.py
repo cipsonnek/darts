@@ -16,10 +16,13 @@ def main() -> None:
     ap.add_argument("--port", type=int, help="port (default 8000)")
     ap.add_argument("--config", help="extra YAML config layer (e.g. configs/simulator.yaml)")
     ap.add_argument("--simulator", action="store_true", help="shortcut for --config configs/simulator.yaml")
+    ap.add_argument("--central", action="store_true", help="operator's fleet server (--config configs/central.yaml)")
     ap.add_argument("--reload", action="store_true", help="auto-reload on code changes (development)")
     args = ap.parse_args()
     if args.simulator:
         os.environ["DARTSENSE_CONFIG"] = "configs/simulator.yaml"
+    elif args.central:
+        os.environ["DARTSENSE_CONFIG"] = "configs/central.yaml"
     elif args.config:
         os.environ["DARTSENSE_CONFIG"] = args.config
     if args.host:

@@ -155,3 +155,106 @@ class EventLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     type: Mapped[str] = mapped_column(String(32), index=True)
     data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+# ------------------------------------------------------------------------------ fleet (central)
+# Used by a server running in ``central`` mode: the operator's view of every board installed
+# in bars and arcades. Boards report to it over the ingest API (heartbeats, finished games).
+
+
+class Venue(Base):
+    """A bar, pub or arcade where boards are installed."""
+
+    __tablename__ = "venues"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String(120))
+    kind: Mapped[str] = mapped_column(String(16), default="bar")  # bar|pub|arcade|club|other
+    address: Mapped[str] = mapped_column(String(200), default="")
+    city: Mapped[str] = mapped_column(String(80), default="", index=True)
+    postal_code: Mapped[str] = mapped_column(String(16), default="")
+    lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lng: Mapped[float | None] = mapped_column(Float, nullable=True)
+    contact_name: Mapped[str] = mapped_column(String(120), default="")
+    phone: Mapped[str] = mapped_column(String(40), default="")
+    email: Mapped[str] = mapped_column(String(120), default="")
+    opening_hours: Mapped[str] = mapped_column(String(200), default="")
+    # Commercial terms: price of one game and the venue's share of revenue (percent).
+    price_per_game: Mapped[float] = mapped_column(Float, default=5.0)
+    venue_share_pct: Mapped[float] = mapped_column(Float, default=50.0)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Board(Base):
+    """One installed DartSense board (a PC with three cameras)."""
+
+    __tablename__ = "boards"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    venue_id: Mapped[str | None] = mapped_column(ForeignKey("venues.id", ondelete="SET NULL"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(80))
+    serial: Mapped[str] = mapped_column(String(64), default="")
+    status: Mapped[str] = mapped_column(String(16), default="active")  # active|maintenance|retired
+    # sha256 of the board's API key; the key itself is shown once when generated.
+    key_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    key_prefix: Mapped[str] = mapped_column(String(8), default="")
+    installed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_status: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class BoardGame(Base):
+    """A finished game reported by a board. Price and venue share are copied at report
+    time so later changes of a venue's terms never rewrite past settlements."""
+
+    __tablename__ = "board_games"
+    __table_args__ = (UniqueConstraint("board_id", "game_id"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    board_id: Mapped[str] = mapped_column(ForeignKey("boards.id", ondelete="CASCADE"), index=True)
+    venue_id: Mapped[str | None] = mapped_column(ForeignKey("venues.id", ondelete="SET NULL"), nullable=True, index=True)
+    game_id: Mapped[str] = mapped_column(String(32))
+    mode: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(16), default="finished")  # finished|abandoned
+    players: Mapped[int] = mapped_column(Integer, default=1)
+    darts: Mapped[int] = mapped_column(Integer, default=0)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_s: Mapped[int] = mapped_column(Integer, default=0)
+    price: Mapped[float] = mapped_column(Float, default=0.0)
+    venue_share_pct: Mapped[float] = mapped_column(Float, default=50.0)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Ticket(Base):
+    """A service ticket (fault report, maintenance visit)."""
+
+    __tablename__ = "tickets"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    board_id: Mapped[str | None] = mapped_column(ForeignKey("boards.id", ondelete="SET NULL"), nullable=True, index=True)
+    venue_id: Mapped[str | None] = mapped_column(ForeignKey("venues.id", ondelete="SET NULL"), nullable=True, index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="")
+    category: Mapped[str] = mapped_column(String(16), default="fault")  # fault|maintenance|install|other
+    priority: Mapped[str] = mapped_column(String(16), default="normal")  # low|normal|high|critical
+    status: Mapped[str] = mapped_column(String(16), default="open", index=True)  # open|in_progress|waiting|closed
+    assignee: Mapped[str] = mapped_column(String(80), default="")
+    reporter: Mapped[str] = mapped_column(String(80), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    comments: Mapped[list["TicketComment"]] = relationship(back_populates="ticket", order_by="TicketComment.created_at",
+                                                           cascade="all, delete-orphan")
+
+
+class TicketComment(Base):
+    __tablename__ = "ticket_comments"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"), index=True)
+    author: Mapped[str] = mapped_column(String(80), default="")
+    text: Mapped[str] = mapped_column(Text)
+    # A status change recorded with the comment (e.g. "open→in_progress"), if any.
+    status_change: Mapped[str] = mapped_column(String(40), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    ticket: Mapped[Ticket] = relationship(back_populates="comments")

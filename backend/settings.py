@@ -37,12 +37,27 @@ class LoggingSettings(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class FleetSettings(BaseModel):
+    """Fleet management. On a board: where to report (``url`` + ``board_key``, both empty =
+    reporting off). On the central server (``mode: central``): alert thresholds and the
+    local time zone and currency used for statistics and settlements."""
+
+    url: str | None = None
+    board_key: str | None = None
+    interval_s: int = Field(60, ge=10, le=3600)
+    offline_after_s: int = Field(300, ge=30)
+    timezone: str = "Europe/Warsaw"
+    currency: str = "PLN"
+
+
 class AppSettings(BaseModel):
-    mode: Literal["live", "simulator"] = "live"
+    # live/simulator: a board with cameras; central: the operator's fleet server (no cameras).
+    mode: Literal["live", "simulator", "central"] = "live"
     server: ServerSettings = Field(default_factory=ServerSettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     vision: VisionConfig = Field(default_factory=VisionConfig)
+    fleet: FleetSettings = Field(default_factory=FleetSettings)
     data_dir: str = "data"
 
     def path(self, p: str) -> Path:

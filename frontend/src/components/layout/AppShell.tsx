@@ -1,10 +1,10 @@
 import clsx from "clsx";
 import {
-  Camera, ChartLine, CirclePlus, Crosshair, Ellipsis, Menu, ScanEye, Settings, SquareTerminal, Target, Tv, Users, X,
+  Building2, Camera, ChartLine, CirclePlus, Crosshair, Ellipsis, Menu, ScanEye, Settings, SquareTerminal, Target, Tv, Users, X,
   type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { NavLink, Outlet } from "react-router";
+import { Navigate, NavLink, Outlet } from "react-router";
 import { Badge } from "@/components/ui";
 import { ENGINE_STATE, plural, tr } from "@/lib/pl";
 import { useLive } from "@/store/live";
@@ -65,6 +65,8 @@ export function AppShell() {
   const cams = useLive((s) => s.cameras);
   const down = cams.filter((c) => !c.connected).length;
   const close = () => setOpen(false);
+  // The central fleet server has no board of its own: its home is the operator panel.
+  if (mode === "central") return <Navigate to="/operator" replace />;
   return (
     <div className="flex min-h-dvh">
       <aside className={clsx("fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)] transition-transform md:sticky md:top-0 md:h-dvh md:translate-x-0",
@@ -80,7 +82,10 @@ export function AppShell() {
         <nav className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 pb-4">
           <NavGroup title="Gra" items={GAME_NAV} onClick={close} />
           <NavGroup title="System" items={SYSTEM_NAV} onClick={close} />
-          <NavLink to="/tv" className="mt-auto flex items-center gap-3 rounded-xl border border-[var(--border)] px-3 py-2.5 text-[15px] font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]">
+          <NavLink to="/operator" className="mt-auto flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]">
+            <Building2 size={19} /> Panel operatora
+          </NavLink>
+          <NavLink to="/tv" className="flex items-center gap-3 rounded-xl border border-[var(--border)] px-3 py-2.5 text-[15px] font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]">
             <Tv size={19} /> Tryb TV
           </NavLink>
         </nav>

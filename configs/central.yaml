@@ -1,0 +1,23 @@
+# Central fleet server for the operator: venues, boards, statistics, settlements, service.
+# Start with:  python -m backend --central   (UI: /operator)
+# No cameras or vision engine run in this mode. Boards report here with their own API key
+# (fleet.url + fleet.board_key in the board's configs/local.yaml).
+
+mode: central
+
+server:
+  port: 8100
+  cors_origins: ["http://localhost:5174", "http://127.0.0.1:5174"]
+
+database:
+  url: sqlite:///data/central.db
+
+vision:
+  cameras: []
+  validation:
+    enabled: false
+
+fleet:
+  offline_after_s: 300
+  timezone: Europe/Warsaw
+  currency: PLN

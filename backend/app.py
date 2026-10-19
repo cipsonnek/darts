@@ -13,9 +13,11 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend import __version__
-from backend.api import routes_dev, routes_games, routes_system, routes_vision
+from backend.api import routes_dev, routes_fleet, routes_games, routes_system, routes_vision
 from backend.database import Database
 from backend.logging_setup import configure_logging
+from backend.services.fleet_client import FleetReporter
+from backend.services.fleet_service import FleetService
 from backend.services.game_service import GameService
 from backend.services.stats_service import StatsService
 from backend.services.vision_service import VisionService
@@ -27,6 +29,9 @@ log = logging.getLogger("backend")
 
 def create_app(settings: AppSettings | None = None, start_vision: bool = True) -> FastAPI:
     settings = settings or load_settings()
+    central = settings.mode == "central"
+    # The central fleet server has no cameras: the vision engine is never started there.
+    start_vision = start_vision and not central
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -53,6 +58,9 @@ def create_app(settings: AppSettings | None = None, start_vision: bool = True) -
         app.state.vision = vision
         app.state.games = games
         app.state.stats = stats
+        app.state.fleet = FleetService(db, settings.fleet)
+        reporter = FleetReporter(settings, db, vision)
+        app.state.fleet_reporter = reporter
 
         # Engine events are handed to a single consumer task so that game logic and
         # database writes for vision events are serialised and never block the engine.
@@ -78,6 +86,7 @@ def create_app(settings: AppSettings | None = None, start_vision: bool = True) -
         vision.add_event_callback(enqueue)
         consumer_task = asyncio.create_task(consumer(), name="vision-events")
         status_task = asyncio.create_task(_status_broadcaster(app), name="status-broadcast")
+        report_task = asyncio.create_task(reporter.run(), name="fleet-report") if not central and reporter.enabled else None
         if start_vision:
             await asyncio.to_thread(vision.start)
         try:
@@ -85,6 +94,8 @@ def create_app(settings: AppSettings | None = None, start_vision: bool = True) -
         finally:
             status_task.cancel()
             consumer_task.cancel()
+            if report_task:
+                report_task.cancel()
             if start_vision:
                 await asyncio.to_thread(vision.stop)
             log.info("DartSense stopped")
@@ -103,6 +114,9 @@ def create_app(settings: AppSettings | None = None, start_vision: bool = True) -
     app.include_router(routes_vision.router)
     app.include_router(routes_games.router)
     app.include_router(routes_dev.router)
+    if central:
+        app.include_router(routes_fleet.ingest)
+        app.include_router(routes_fleet.router)
 
     @app.websocket("/ws/events")
     async def ws_events(ws: WebSocket) -> None:

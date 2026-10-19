@@ -4,13 +4,32 @@
     {
       "name": "dartsense-simulator",
       "runtimeExecutable": ".venv/Scripts/python.exe",
-      "runtimeArgs": ["-m", "backend", "--simulator"],
+      "runtimeArgs": [
+        "-m",
+        "backend",
+        "--simulator"
+      ],
       "port": 8000
+    },
+    {
+      "name": "dartsense-central",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "-m",
+        "backend",
+        "--central"
+      ],
+      "port": 8100
     },
     {
       "name": "dartsense-frontend-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "frontend"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "frontend"
+      ],
       "port": 5173
     }
   ]
