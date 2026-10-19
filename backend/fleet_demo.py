@@ -203,10 +203,14 @@ def live(db: Database, svc: FleetService, rnd: random.Random, tz: ZoneInfo, inte
             boards = list(s.scalars(select(Board).where(Board.serial.like("DEMO-%"), Board.status == "active",
                                                         Board.last_seen_at.is_not(None))))
             venues = {v.id: v for v in s.scalars(select(Venue))}
+            seen_at = {b.id: b.last_seen_at if b.last_seen_at.tzinfo else b.last_seen_at.replace(tzinfo=timezone.utc)
+                       for b in boards}
+            # Boards seen together with the most recent one were online; those seeded as offline
+            # are hours behind and stay offline (also after a pause of the demo).
+            latest = max(seen_at.values(), default=now)
             for b in boards:
-                seen = b.last_seen_at if b.last_seen_at.tzinfo else b.last_seen_at.replace(tzinfo=timezone.utc)
-                if now - seen > timedelta(minutes=10):
-                    continue  # boards seeded as offline stay offline
+                if latest - seen_at[b.id] > timedelta(minutes=10):
+                    continue
                 b.last_seen_at = now
                 st = dict(b.last_status or {})
                 st["active_game"] = rnd.random() < 0.35
