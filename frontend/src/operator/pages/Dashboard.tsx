@@ -18,8 +18,8 @@ export function DailyChart({ data, height = 260 }: { data: { date: string; games
           <Tooltip contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12 }}
             labelFormatter={(d) => new Date(String(d)).toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" })}
             formatter={(v, name) => (name === "revenue" ? [zl(Number(v)), "Przychód"] : [n(Number(v)), "Gry"])} />
-          <Bar yAxisId="g" dataKey="games" fill="var(--accent)" radius={[4, 4, 0, 0]} opacity={0.85} />
-          <Line yAxisId="r" dataKey="revenue" stroke="var(--good)" strokeWidth={2.5} dot={false} type="monotone" />
+          <Bar yAxisId="g" dataKey="games" fill="var(--accent)" radius={[4, 4, 0, 0]} opacity={0.85} isAnimationActive={false} />
+          <Line yAxisId="r" dataKey="revenue" stroke="var(--good)" strokeWidth={2.5} dot={false} type="monotone" isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>

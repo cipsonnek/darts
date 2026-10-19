@@ -88,7 +88,7 @@ export default function Stats() {
                         <YAxis type="category" dataKey="name" stroke="var(--muted)" fontSize={13} width={110} />
                         <Tooltip contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12 }}
                           formatter={(v) => [`${n(Number(v))} (${Math.round((Number(v) / t.games) * 100)}%)`, "Gry"]} cursor={{ fill: "var(--surface-2)" }} />
-                        <Bar dataKey="games" fill="var(--accent)" radius={[0, 6, 6, 0]} />
+                        <Bar dataKey="games" fill="var(--accent)" radius={[0, 6, 6, 0]} isAnimationActive={false} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
