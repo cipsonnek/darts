@@ -94,6 +94,7 @@ vision:
 
   scoring:
     confidence_threshold: 0.90
+    auto_accept: true
     max_alternatives: 3
 
   tracking:

@@ -211,6 +211,9 @@ class ScoringConfig(BaseModel):
     # Darts whose score probability is below this are reported as uncertain and need a
     # human decision.
     confidence_threshold: float = Field(0.90, ge=0.0, le=1.0)
+    # Score uncertain darts in a game straight away instead of asking the user to confirm
+    # them (they stay flagged as uncertain and can still be corrected).
+    auto_accept: bool = True
     monte_carlo_samples: int = Field(4000, ge=100)
     max_alternatives: int = 3
     # Treat an impact outside the double ring but on the board as a scored miss.

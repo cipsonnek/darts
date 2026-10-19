@@ -5,6 +5,9 @@ import { Badge, Button, Card, Check, ErrorNote, Field, inputCls, PageHeader, Spi
 import { useAction, useApi } from "@/hooks/useApi";
 import { api, snapshotUrl } from "@/lib/api";
 import type { CameraInfo } from "@/lib/types";
+import { GRADE, tr } from "@/lib/pl";
+
+const CAL_STATUS: Record<string, string> = { ok: "OK", warning: "uwaga", error: "błąd", uncalibrated: "brak kalibracji" };
 
 interface CalStatus {
   cameras: Record<string, any>;
@@ -12,11 +15,11 @@ interface CalStatus {
 }
 
 const POINT_LABELS: Record<string, string> = {
-  "double_outer:20|1": "Outer edge of the double ring on the wire between 20 and 1",
-  "double_outer:6|10": "Outer edge of the double ring on the wire between 6 and 10",
-  "double_outer:3|19": "Outer edge of the double ring on the wire between 3 and 19",
-  "double_outer:11|14": "Outer edge of the double ring on the wire between 11 and 14",
-  bull: "Centre of the bull (optional, improves accuracy)",
+  "double_outer:20|1": "Zewnętrzna krawędź pola double na drucie między 20 a 1",
+  "double_outer:6|10": "Zewnętrzna krawędź pola double na drucie między 6 a 10",
+  "double_outer:3|19": "Zewnętrzna krawędź pola double na drucie między 3 a 19",
+  "double_outer:11|14": "Zewnętrzna krawędź pola double na drucie między 11 a 14",
+  bull: "Środek bulla (opcjonalnie, poprawia dokładność)",
 };
 
 export default function Calibration() {
@@ -28,8 +31,8 @@ export default function Calibration() {
 
   return (
     <div>
-      <PageHeader title="Calibration" subtitle="Lens (intrinsics) and camera-to-board pose for every camera, with measured quality."
-        actions={<Button onClick={() => validate.run()} disabled={validate.busy}>{validate.busy ? <Spinner /> : null} Check calibration now</Button>} />
+      <PageHeader title="Kalibracja" subtitle="Obiektyw (parametry wewnętrzne) i położenie każdej kamery względem tarczy, z oceną jakości."
+        actions={<Button onClick={() => validate.run()} disabled={validate.busy}>{validate.busy ? <Spinner /> : null} Sprawdź kalibrację teraz</Button>} />
       {status && <Summary status={status} cams={cams ?? []} />}
       <ErrorNote error={validate.error} />
       {cams && current && (
@@ -47,7 +50,7 @@ export default function Calibration() {
 function Summary({ status, cams }: { status: CalStatus; cams: CameraInfo[] }) {
   const o = status.overall;
   return (
-    <Card title="Calibration status" actions={<Badge tone={o.status === "ok" ? "good" : o.status === "warning" ? "warn" : "bad"}>{o.status}</Badge>}>
+    <Card title="Stan kalibracji" actions={<Badge tone={o.status === "ok" ? "good" : o.status === "warning" ? "warn" : "bad"}>{tr(CAL_STATUS, o.status)}</Badge>}>
       <div className="grid gap-4 md:grid-cols-3">
         {cams.map((c) => {
           const s = status.cameras[c.id];
@@ -58,15 +61,15 @@ function Summary({ status, cams }: { status: CalStatus; cams: CameraInfo[] }) {
             <div key={c.id} className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
               <div className="mb-2 font-display font-bold">{c.name}</div>
               <div className="flex flex-col gap-1">
-                <Check ok={!!s?.connected} label="Connected" />
-                <Check ok={s?.intrinsics ? true : null} label={s?.intrinsics ? "Intrinsics calibrated" : "Intrinsics estimated from board"}
+                <Check ok={!!s?.connected} label="Połączona" />
+                <Check ok={s?.intrinsics ? true : null} label={s?.intrinsics ? "Obiektyw skalibrowany" : "Obiektyw oszacowany z tarczy"}
                   detail={s?.intrinsics ? `${s.intrinsics.rms_px.toFixed(2)} px` : undefined} />
-                <Check ok={!!pose} label="Board detected" detail={pose ? pose.method : undefined} />
-                <Check ok={!!pose} label="Board centre / plane" detail={pose && m.board_center_px ? `(${m.board_center_px.join(", ")})` : undefined} />
-                <Check ok={pose ? pose.grade !== "poor" : false} label={<>Quality: <b className="uppercase">{pose?.grade ?? "—"}</b></>}
-                  detail={pose ? `edges ${m.edge_rms_px} px · ±${m.pose_sigma_mm} mm` : undefined} />
+                <Check ok={!!pose} label="Tarcza wykryta" detail={pose ? pose.method : undefined} />
+                <Check ok={!!pose} label="Środek / płaszczyzna tarczy" detail={pose && m.board_center_px ? `(${m.board_center_px.join(", ")})` : undefined} />
+                <Check ok={pose ? pose.grade !== "poor" : false} label={<>Jakość: <b className="uppercase">{tr(GRADE, pose?.grade)}</b></>}
+                  detail={pose ? `krawędzie ${m.edge_rms_px} px · ±${m.pose_sigma_mm} mm` : undefined} />
                 {v && <Check ok={v.status === "ok" ? true : v.status === "warning" ? null : false}
-                  label={v.status === "ok" ? "No movement detected" : v.message} detail={`alignment ${(v.alignment * 100).toFixed(1)}%`} />}
+                  label={v.status === "ok" ? "Bez przesunięć" : v.message} detail={`dopasowanie ${(v.alignment * 100).toFixed(1)}%`} />}
               </div>
             </div>
           );
@@ -74,8 +77,8 @@ function Summary({ status, cams }: { status: CalStatus; cams: CameraInfo[] }) {
       </div>
       {(o.board_alignment != null || o.recommendation.length > 0) && (
         <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
-          {o.board_alignment != null && <span>Board alignment: <b>{(o.board_alignment * 100).toFixed(1)}%</b></span>}
-          {o.recommendation.map((r) => <Badge key={r} tone="warn">Recommended: {r}</Badge>)}
+          {o.board_alignment != null && <span>Dopasowanie tarczy: <b>{(o.board_alignment * 100).toFixed(1)}%</b></span>}
+          {o.recommendation.map((r) => <Badge key={r} tone="warn">Zalecane: {r}</Badge>)}
         </div>
       )}
     </Card>
@@ -86,7 +89,7 @@ function CameraCalibration({ cam, st, onChange }: { cam: CameraInfo; st: any; on
   const [step, setStep] = useState<"board" | "intrinsics">("board");
   return (
     <div className="flex flex-col gap-4">
-      <Tabs value={step} onChange={setStep} items={[{ id: "board", label: "Board position" }, { id: "intrinsics", label: "Lens (intrinsics)" }]} />
+      <Tabs value={step} onChange={setStep} items={[{ id: "board", label: "Położenie tarczy" }, { id: "intrinsics", label: "Obiektyw" }]} />
       {step === "board" ? <BoardStep cam={cam} st={st} onChange={onChange} /> : <IntrinsicsStep cam={cam} st={st} onChange={onChange} />}
     </div>
   );
@@ -129,14 +132,14 @@ function BoardStep({ cam, st, onChange }: { cam: CameraInfo; st: any; onChange: 
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-      <Card title={mode === "auto" ? "Live view" : mode === "hint" ? "Click once inside the single 20" : "Click the points"} pad={false}
-        actions={<Button size="sm" variant="ghost" onClick={() => setFrame((f) => f + 1)}>Refresh frame</Button>}>
+      <Card title={mode === "auto" ? "Podgląd na żywo" : mode === "hint" ? "Kliknij raz wewnątrz pola single 20" : "Klikaj kolejne punkty"} pad={false}
+        actions={<Button size="sm" variant="ghost" onClick={() => setFrame((f) => f + 1)}>Odśwież klatkę</Button>}>
         <div className="p-3">
           {mode === "auto" ? (
             <CameraView cameraId={cam.id} overlay={["board", "sectors", "labels"]} width={1280} fps={6} />
           ) : (
             <div className="relative">
-              <img ref={imgRef} src={snapshotUrl(cam.id, {}, frame)} onClick={clickFrame} className="w-full cursor-crosshair rounded-xl" alt="frozen frame" draggable={false} />
+              <img ref={imgRef} src={snapshotUrl(cam.id, {}, frame)} onClick={clickFrame} className="w-full cursor-crosshair rounded-xl" alt="zatrzymana klatka" draggable={false} />
               {Object.entries(points).map(([k, p]) => imgRef.current && (
                 <span key={k} className="pointer-events-none absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-[var(--accent)]"
                   style={{ left: `${(p[0] / imgRef.current.naturalWidth) * 100}%`, top: `${(p[1] / imgRef.current.naturalHeight) * 100}%` }} />
@@ -146,17 +149,17 @@ function BoardStep({ cam, st, onChange }: { cam: CameraInfo; st: any; onChange: 
         </div>
       </Card>
       <div className="flex flex-col gap-4">
-        <Card title="Detect board">
+        <Card title="Wykrywanie tarczy">
           <div className="flex flex-col gap-3">
-            <Field label="Camera position (clock angle, degrees)" hint="0 = above the 20, 90 = right (6), 180 = below (3), 270 = left (11). Resolves the board's rotation.">
+            <Field label="Pozycja kamery (kąt jak na zegarze, stopnie)" hint="0 = nad 20, 90 = po prawej (6), 180 = pod (3), 270 = po lewej (11). Pozwala ustalić obrót tarczy.">
               <input className={inputCls} type="number" min={0} max={360} value={azimuth} onChange={(e) => setAzimuth(e.target.value)} />
             </Field>
             <div className="flex flex-wrap gap-2">
               <Button variant="primary" disabled={detect.busy} onClick={() => detect.run({ method: "auto", azimuth_deg: azimuth === "" ? null : Number(azimuth) })}>
-                {detect.busy && <Spinner />} Detect automatically
+                {detect.busy && <Spinner />} Wykryj automatycznie
               </Button>
-              <Button onClick={() => { setMode("hint"); setFrame((f) => f + 1); }}>Click the 20…</Button>
-              <Button onClick={() => { setMode("manual"); setPoints({}); setFrame((f) => f + 1); }}>Manual points…</Button>
+              <Button onClick={() => { setMode("hint"); setFrame((f) => f + 1); }}>Wskaż pole 20…</Button>
+              <Button onClick={() => { setMode("manual"); setPoints({}); setFrame((f) => f + 1); }}>Punkty ręcznie…</Button>
             </div>
             {mode === "manual" && (
               <div className="rounded-xl border border-[var(--border)] p-3 text-sm">
@@ -168,10 +171,10 @@ function BoardStep({ cam, st, onChange }: { cam: CameraInfo; st: any; onChange: 
                   ))}
                 </ol>
                 <div className="mt-3 flex gap-2">
-                  <Button size="sm" onClick={() => setPoints({})}>Reset</Button>
+                  <Button size="sm" onClick={() => setPoints({})}>Od nowa</Button>
                   <Button size="sm" variant="primary" disabled={Object.keys(points).length < 4 || detect.busy}
-                    onClick={() => detect.run({ method: "manual", points })}>Solve from {Object.keys(points).length} points</Button>
-                  <Button size="sm" variant="ghost" onClick={() => setMode("auto")}>Cancel</Button>
+                    onClick={() => detect.run({ method: "manual", points })}>Oblicz z {Object.keys(points).length} punktów</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setMode("auto")}>Anuluj</Button>
                 </div>
               </div>
             )}
@@ -179,13 +182,13 @@ function BoardStep({ cam, st, onChange }: { cam: CameraInfo; st: any; onChange: 
           </div>
         </Card>
         {result && (
-          <Card title="Result" actions={result.ok && <Badge tone={result.grade === "good" ? "good" : result.grade === "fair" ? "warn" : "bad"}>{result.grade}</Badge>}>
+          <Card title="Wynik" actions={result.ok && <Badge tone={result.grade === "good" ? "good" : result.grade === "fair" ? "warn" : "bad"}>{tr(GRADE, result.grade)}</Badge>}>
             {!result.ok ? (
               <div className="text-sm text-[var(--bad)]">{result.reason}</div>
             ) : (
               <div className="flex flex-col gap-3">
-                <img src={`/api/calibration/${cam.id}/preview.jpg?width=900&_=${preview}`} className="w-full rounded-lg" alt="calibration preview" />
-                <div className="text-xs text-[var(--muted)]">Check that the green/cyan rings and sector lines lie exactly on the board wires.</div>
+                <img src={`/api/calibration/${cam.id}/preview.jpg?width=900&_=${preview}`} className="w-full rounded-lg" alt="podgląd kalibracji" />
+                <div className="text-xs text-[var(--muted)]">Sprawdź, czy zielone/turkusowe okręgi i linie sektorów leżą dokładnie na drutach tarczy.</div>
                 <div className="grid grid-cols-1 gap-1">
                   {result.checks.map((c: any) => (
                     <Check key={c.name} ok={c.status === "good" ? true : c.status === "fair" ? null : false} label={c.name} detail={`${c.value} ${c.unit}`} />
@@ -198,18 +201,18 @@ function BoardStep({ cam, st, onChange }: { cam: CameraInfo; st: any; onChange: 
                 </div>
                 <ErrorNote error={accept.error} />
                 <div className="flex gap-2">
-                  <Button variant="good" onClick={() => accept.run()} disabled={accept.busy}>Accept calibration</Button>
-                  <Button onClick={async () => { await api.post(`/api/calibration/${cam.id}/board/discard`); setResult(null); }}>Discard</Button>
+                  <Button variant="good" onClick={() => accept.run()} disabled={accept.busy}>Zatwierdź kalibrację</Button>
+                  <Button onClick={async () => { await api.post(`/api/calibration/${cam.id}/board/discard`); setResult(null); }}>Odrzuć</Button>
                 </div>
               </div>
             )}
           </Card>
         )}
         {st?.pose && !result && (
-          <Card title="Current calibration">
+          <Card title="Aktualna kalibracja">
             <div className="text-sm">
-              <div>Method: <b>{st.pose.method}</b> · grade <b className="uppercase">{st.pose.grade}</b>{st.pose.stale && <Badge tone="warn" className="ml-2">stale — recalibrate</Badge>}</div>
-              <div className="text-[var(--muted)]">{st.pose.calibrated_at && new Date(st.pose.calibrated_at).toLocaleString()} · intrinsics {st.pose.intrinsics_source}</div>
+              <div>Metoda: <b>{st.pose.method}</b> · jakość <b className="uppercase">{tr(GRADE, st.pose.grade)}</b>{st.pose.stale && <Badge tone="warn" className="ml-2">nieaktualna — skalibruj ponownie</Badge>}</div>
+              <div className="text-[var(--muted)]">{st.pose.calibrated_at && new Date(st.pose.calibrated_at).toLocaleString("pl-PL")} · obiektyw: {st.pose.intrinsics_source}</div>
             </div>
           </Card>
         )}
@@ -237,25 +240,25 @@ function IntrinsicsStep({ cam, st, onChange }: { cam: CameraInfo; st: any; onCha
   });
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-      <Card title="Live view" pad={false}><div className="p-3"><CameraView cameraId={cam.id} width={1280} fps={8} /></div></Card>
+      <Card title="Podgląd na żywo" pad={false}><div className="p-3"><CameraView cameraId={cam.id} width={1280} fps={8} /></div></Card>
       <div className="flex flex-col gap-4">
-        <Card title="ChArUco target">
+        <Card title="Wzorzec ChArUco">
           <div className="flex flex-col gap-2 text-sm">
-            <p>Print the target at 100 % scale on a flat, rigid surface. Hold it at different positions, distances and angles, covering the whole image, especially the corners. 15–25 views give a reliable result.</p>
-            <a className="text-[var(--accent)] underline" href="/api/calibration/charuco.png" target="_blank" rel="noreferrer">Open printable target (PNG, 300 dpi)</a>
-            {st?.intrinsics && <div className="text-[var(--muted)]">Current: RMS {st.intrinsics.rms_px.toFixed(3)} px from {st.intrinsics.n_views} views</div>}
+            <p>Wydrukuj wzorzec w skali 100% i przyklej na płaską, sztywną powierzchnię. Trzymaj go w różnych miejscach, odległościach i pod różnymi kątami, tak by pokryć cały obraz, zwłaszcza rogi. 15–25 ujęć daje pewny wynik.</p>
+            <a className="text-[var(--accent)] underline" href="/api/calibration/charuco.png" target="_blank" rel="noreferrer">Otwórz wzorzec do druku (PNG, 300 dpi)</a>
+            {st?.intrinsics && <div className="text-[var(--muted)]">Obecnie: RMS {st.intrinsics.rms_px.toFixed(3)} px z {st.intrinsics.n_views} ujęć</div>}
           </div>
         </Card>
-        <Card title="Capture">
+        <Card title="Ujęcia">
           {!session ? (
-            <Button variant="primary" onClick={() => start.run()} disabled={start.busy}>Start session</Button>
+            <Button variant="primary" onClick={() => start.run()} disabled={start.busy}>Rozpocznij sesję</Button>
           ) : (
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-3">
-                <Button variant="primary" size="lg" onClick={() => capture.run()} disabled={capture.busy}>Capture view</Button>
-                <div className="text-sm">{session.views} / {session.min_views}+ views · coverage {Math.round(session.coverage * 100)}%</div>
+                <Button variant="primary" size="lg" onClick={() => capture.run()} disabled={capture.busy}>Zrób ujęcie</Button>
+                <div className="text-sm">ujęcia {session.views} / {session.min_views}+ · pokrycie {Math.round(session.coverage * 100)}%</div>
               </div>
-              {last && <div className={clsx("text-sm", last.accepted ? "text-[var(--good)]" : "text-[var(--warn)]")}>{last.accepted ? `Accepted (${last.corners} corners)` : last.reason}</div>}
+              {last && <div className={clsx("text-sm", last.accepted ? "text-[var(--good)]" : "text-[var(--warn)]")}>{last.accepted ? `Przyjęte (narożników: ${last.corners})` : last.reason}</div>}
               {session.coverage_grid && (
                 <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${session.coverage_grid[0].length}, 1fr)` }}>
                   {session.coverage_grid.flat().map((v: number, i: number) => (
@@ -264,20 +267,20 @@ function IntrinsicsStep({ cam, st, onChange }: { cam: CameraInfo; st: any; onCha
                 </div>
               )}
               <div className="flex gap-2">
-                <Button onClick={() => solve.run()} disabled={solve.busy || session.views < session.min_views}>Solve</Button>
-                <Button variant="ghost" onClick={async () => { await api.del(`/api/calibration/${cam.id}/intrinsics/session`); setSession(null); }}>Cancel</Button>
+                <Button onClick={() => solve.run()} disabled={solve.busy || session.views < session.min_views}>Oblicz</Button>
+                <Button variant="ghost" onClick={async () => { await api.del(`/api/calibration/${cam.id}/intrinsics/session`); setSession(null); }}>Anuluj</Button>
               </div>
             </div>
           )}
           <ErrorNote error={start.error ?? capture.error ?? solve.error ?? accept.error} />
         </Card>
         {solved && (
-          <Card title="Lens calibration result" actions={<Badge tone={solved.grade === "good" ? "good" : "warn"}>{solved.grade}</Badge>}>
+          <Card title="Wynik kalibracji obiektywu" actions={<Badge tone={solved.grade === "good" ? "good" : "warn"}>{tr(GRADE, solved.grade)}</Badge>}>
             <div className="flex flex-col gap-1 text-sm">
-              <Check ok={solved.rms_px < 0.8} label="Reprojection RMS" detail={`${solved.rms_px.toFixed(3)} px`} />
-              <Check ok={solved.coverage >= 0.5 ? true : null} label="Image coverage" detail={`${Math.round(solved.coverage * 100)}%`} />
+              <Check ok={solved.rms_px < 0.8} label="RMS reprojekcji" detail={`${solved.rms_px.toFixed(3)} px`} />
+              <Check ok={solved.coverage >= 0.5 ? true : null} label="Pokrycie obrazu" detail={`${Math.round(solved.coverage * 100)}%`} />
               <div className="text-xs text-[var(--muted)]">fx {solved.K[0][0].toFixed(1)} · fy {solved.K[1][1].toFixed(1)} · cx {solved.K[0][2].toFixed(1)} · cy {solved.K[1][2].toFixed(1)}</div>
-              <Button className="mt-2" variant="good" onClick={() => accept.run()}>Accept (board pose must be redone)</Button>
+              <Button className="mt-2" variant="good" onClick={() => accept.run()}>Zatwierdź (potem ponownie położenie tarczy)</Button>
             </div>
           </Card>
         )}

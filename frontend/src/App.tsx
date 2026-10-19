@@ -35,7 +35,7 @@ export default function App() {
             <Route path="detection" element={<Detection />} />
             <Route path="settings" element={<Settings />} />
             <Route path="developer" element={<Developer />} />
-            <Route path="*" element={<div className="p-10 text-center text-[var(--muted)]">Page not found.</div>} />
+            <Route path="*" element={<div className="p-10 text-center text-[var(--muted)]">Nie ma takiej strony.</div>} />
           </Route>
         </Routes>
       </Suspense>

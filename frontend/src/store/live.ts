@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import type { CameraHealth, DartDetection, GameState, WsMessage } from "@/lib/types";
 import type { WsStatus } from "@/lib/ws";
+import { dartLabel } from "@/lib/pl";
 
 export interface FeedItem {
   id: number;
@@ -43,27 +44,27 @@ function describe(m: WsMessage): FeedItem | null {
   switch (m.type) {
     case "dart_detected":
       return { ...base, tone: d.uncertain ? "warn" : "good",
-        text: `${d.score?.label} (${Math.round((d.confidence?.overall ?? 0) * 100)}%)${d.uncertain ? " — uncertain" : ""}` };
+        text: `Rzut: ${dartLabel(d.score?.label ?? "")} (pewność ${Math.round((d.confidence?.overall ?? 0) * 100)}%)${d.uncertain ? " — niepewny" : ""}` };
     case "darts_removed":
-      return { ...base, tone: "info", text: `${d.dart_ids?.length ?? 0} dart(s) removed${d.board_clear ? " — board clear" : ""}` };
+      return { ...base, tone: "info", text: `Wyjęto lotki: ${d.dart_ids?.length ?? 0}${d.board_clear ? " — tarcza pusta" : ""}` };
     case "obstruction":
-      return { ...base, tone: "warn", text: `Board obstructed (${(d.cameras ?? []).join(", ")})` };
+      return { ...base, tone: "warn", text: `Tarcza zasłonięta (${(d.cameras ?? []).join(", ")})` };
     case "unrecognized_change":
-      return { ...base, tone: "warn", text: "Change not recognised as a dart — enter manually if a dart was thrown" };
+      return { ...base, tone: "warn", text: "Zmiana nierozpoznana jako lotka — jeśli był rzut, wpisz go ręcznie" };
     case "motion_without_change":
-      return d.possible_bounce_out ? { ...base, tone: "warn", text: "Motion without a dart (possible bounce-out)" } : null;
+      return d.possible_bounce_out ? { ...base, tone: "warn", text: "Ruch bez lotki (może odbita lotka)" } : null;
     case "engine_error":
-      return { ...base, tone: "bad", text: `Engine error: ${d.error}` };
+      return { ...base, tone: "bad", text: `Błąd silnika: ${d.error}` };
     case "calibration_status": {
       const bad = Object.values(d as Record<string, any>).filter((v: any) => v && typeof v === "object" && v.status !== "ok");
-      return bad.length ? { ...base, tone: "warn", text: `Calibration check: ${bad.map((v: any) => `${v.camera_id} ${v.status}`).join(", ")}` } : null;
+      return bad.length ? { ...base, tone: "warn", text: `Kontrola kalibracji: ${bad.map((v: any) => `${v.camera_id} ${v.status}`).join(", ")}` } : null;
     }
     case "baseline_set":
-      return { ...base, tone: "info", text: "Board baseline captured" };
+      return { ...base, tone: "info", text: "Zapamiętano obraz pustej tarczy" };
     case "dart_relabelled":
-      return { ...base, tone: "info", text: `Dart corrected to ${d.label}` };
+      return { ...base, tone: "info", text: `Rzut poprawiony na ${dartLabel(d.label)}` };
     case "dart_moved":
-      return { ...base, tone: "info", text: "A dart in the board moved (not scored)" };
+      return { ...base, tone: "info", text: "Lotka w tarczy się przesunęła (nie liczona)" };
     default:
       return null;
   }

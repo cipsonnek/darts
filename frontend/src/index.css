@@ -1,17 +1,23 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource/barlow-condensed/600.css";
+@import "@fontsource/barlow-condensed/700.css";
+@import "@fontsource/barlow-condensed/800.css";
 
 @theme {
-  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-display: "Space Grotesk", "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "Inter Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Inter Variable", "Segoe UI", system-ui, sans-serif;
+  --font-score: "Barlow Condensed", "Inter Variable", "Segoe UI", system-ui, sans-serif;
 }
 
+/* Defaults match the "oche" theme so the first paint (before applyTheme runs) does not flash. */
 :root {
-  --bg: #0b0d12;
-  --surface: #141821;
-  --surface-2: #1b2130;
-  --border: #262e40;
-  --text: #eef1f6;
-  --muted: #8b94a8;
+  --bg: #090c12;
+  --surface: #121721;
+  --surface-2: #1a2130;
+  --border: #283244;
+  --text: #f2f5fa;
+  --muted: #a1abbe;
   --accent: #e8324a;
   --good: #2ecc71;
   --warn: #f5b942;
@@ -34,11 +40,21 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
 .font-display {
   font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+/* Big numbers: remaining score, darts, averages. */
+.font-score {
+  font-family: var(--font-score);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
 }
 
 select,
@@ -63,4 +79,19 @@ textarea {
 }
 .animate-pop {
   animation: pop 0.35s ease-out;
+}
+
+@keyframes rise {
+  from { transform: translateY(6px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.animate-rise {
+  animation: rise 0.25s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pop,
+  .animate-rise {
+    animation: none;
+  }
 }

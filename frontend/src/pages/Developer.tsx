@@ -9,16 +9,20 @@ import { useLive } from "@/store/live";
 
 type Tab = "simulator" | "recordings" | "logs" | "events" | "system" | "benchmark";
 
+const LIGHTING: Record<string, string> = {
+  neutral: "neutralne", led_ring: "pierścień LED", warm: "ciepłe", dim: "przyciemnione", bright: "jasne", uneven: "nierówne", side_light: "z boku",
+};
+
 export default function Developer() {
   const mode = useLive((s) => s.mode);
   const [tab, setTab] = useState<Tab | null>(null);
   const current: Tab = tab ?? (mode === "simulator" ? "simulator" : "recordings");
   return (
     <div>
-      <PageHeader title="Developer" subtitle="Ground truth, recordings, replay evaluation, logs and system diagnostics." />
+      <PageHeader title="Narzędzia" subtitle="Symulator, nagrania z wzorcem (ground truth), ocena odtworzeń, logi i diagnostyka systemu." />
       <Tabs value={current} onChange={setTab} items={[
-        { id: "simulator", label: "Simulator" }, { id: "recordings", label: "Recordings & ground truth" },
-        { id: "benchmark", label: "Benchmark" }, { id: "logs", label: "Logs" }, { id: "events", label: "Events" }, { id: "system", label: "System" },
+        { id: "simulator", label: "Symulator" }, { id: "recordings", label: "Nagrania i wzorzec" },
+        { id: "benchmark", label: "Benchmark" }, { id: "logs", label: "Logi" }, { id: "events", label: "Zdarzenia" }, { id: "system", label: "System" },
       ]} />
       <div className="mt-4">
         {current === "simulator" && <Simulator />}
@@ -57,45 +61,45 @@ function Simulator() {
   const errs = rows.filter((r) => r.d).map((r) => r.err);
   const correct = rows.filter((r) => r.d && (r.d.final_label ?? r.d.label) === r.g.score.label).length;
 
-  if (mode !== "simulator") return <Empty title="Simulator not active">Start the server with <code>python -m backend --simulator</code> to drive three synthetic cameras.</Empty>;
+  if (mode !== "simulator") return <Empty title="Symulator nie działa">Uruchom serwer poleceniem <code>python -m backend --simulator</code>, aby sterować trzema syntetycznymi kamerami.</Empty>;
   const markers: BoardMarker[] = rows.flatMap((r, i) => [
     { id: `g${i}`, x_mm: r.g.impact_mm[0], y_mm: r.g.impact_mm[1], shape: "cross" as const, color: "var(--good)" },
     ...(r.d ? [{ id: `d${i}`, x_mm: r.d.x_mm, y_mm: r.d.y_mm, color: "var(--accent)" }] : []),
   ]);
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,560px)_minmax(0,1fr)]">
-      <Card title="Click the board to throw">
+      <Card title="Kliknij tarczę, aby rzucić">
         <div className="aspect-square"><Dartboard board={board} markers={markers} onClick={(p) => throwAt.run({ target: [p.x_mm, p.y_mm], scatter_mm: scatter })} /></div>
-        <div className="mt-2 text-xs text-[var(--muted)]">× true impact (simulator) · ● detected</div>
+        <div className="mt-2 text-xs text-[var(--muted)]">× prawdziwe trafienie (symulator) · ● wykryte</div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Field label={`Aim scatter ${scatter} mm`}><input type="range" min={0} max={40} value={scatter} onChange={(e) => setScatter(Number(e.target.value))} /></Field>
-          <Button onClick={() => throwAt.run({ scatter_mm: 0 })}>Random throw</Button>
+          <Field label={`Rozrzut celowania: ${scatter} mm`}><input type="range" min={0} max={40} value={scatter} onChange={(e) => setScatter(Number(e.target.value))} /></Field>
+          <Button onClick={() => throwAt.run({ scatter_mm: 0 })}>Losowy rzut</Button>
           {["T20", "D16", "BULL", "T19"].map((l) => <Button key={l} size="sm" onClick={() => throwAt.run({ label: l, scatter_mm: scatter })}>{l}</Button>)}
         </div>
         <ErrorNote error={throwAt.error ?? misc.error} />
       </Card>
       <div className="flex flex-col gap-4">
-        <Card title="Scene">
+        <Card title="Scena">
           <div className="flex flex-wrap gap-2">
-            <Button variant="primary" onClick={() => misc.run("takeout")}>Pull darts (takeout)</Button>
-            <Button onClick={() => misc.run("hand")}>Hand passes by</Button>
-            <Button onClick={() => misc.run("auto-calibrate")}>Auto-calibrate all cameras</Button>
+            <Button variant="primary" onClick={() => misc.run("takeout")}>Wyjmij lotki</Button>
+            <Button onClick={() => misc.run("hand")}>Ręka przed tarczą</Button>
+            <Button onClick={() => misc.run("auto-calibrate")}>Autokalibracja wszystkich kamer</Button>
           </div>
           <div className="mt-3 flex flex-wrap gap-1">
             {["neutral", "led_ring", "warm", "dim", "bright", "uneven", "side_light"].map((l) => (
-              <Button key={l} size="sm" variant="ghost" onClick={() => misc.run("lighting", { preset: l })}>{l}</Button>
+              <Button key={l} size="sm" variant="ghost" onClick={() => misc.run("lighting", { preset: l })}>{LIGHTING[l] ?? l}</Button>
             ))}
           </div>
         </Card>
-        <Card title="Ground truth vs detection (synthetic)">
+        <Card title="Wzorzec a odczyt (symulacja)">
           <div className="mb-3 grid grid-cols-3 gap-2">
-            <Stat label="Matched" value={`${errs.length}/${rows.length}`} />
-            <Stat label="Score correct" value={rows.length ? `${Math.round((correct / rows.length) * 100)}%` : "–"} />
-            <Stat label="Mean error" value={errs.length ? `${(errs.reduce((a, b) => a + b, 0) / errs.length).toFixed(2)} mm` : "–"} />
+            <Stat label="Dopasowane" value={`${errs.length}/${rows.length}`} />
+            <Stat label="Poprawny wynik" value={rows.length ? `${Math.round((correct / rows.length) * 100)}%` : "–"} />
+            <Stat label="Średni błąd" value={errs.length ? `${(errs.reduce((a, b) => a + b, 0) / errs.length).toFixed(2)} mm` : "–"} />
           </div>
           <div className="max-h-80 overflow-auto text-sm">
             <table className="w-full">
-              <thead className="text-left text-xs text-[var(--muted)]"><tr><th>True</th><th>Detected</th><th className="text-right">Error</th><th /></tr></thead>
+              <thead className="text-left text-xs text-[var(--muted)]"><tr><th>Prawda</th><th>Odczyt</th><th className="text-right">Błąd</th><th /></tr></thead>
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={i} className="border-t border-[var(--border)]">
@@ -124,32 +128,32 @@ function Recordings() {
   if (open) return <RecordingViewer name={open} onClose={() => { setOpen(null); reload(); }} />;
   return (
     <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
-      <Card title="Record">
+      <Card title="Nagrywanie">
         {data?.active ? (
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2"><span className="h-3 w-3 animate-pulse rounded-full bg-[var(--bad)]" /> Recording <b>{data.active.name}</b></div>
-            <div className="text-sm text-[var(--muted)]">{Object.entries(data.active.frame_counts).map(([c, n]) => `${c}: ${n}`).join(" · ")} · dropped {data.active.dropped_frames}</div>
-            <Button variant="danger" onClick={() => stop.run()}>Stop</Button>
+            <div className="flex items-center gap-2"><span className="h-3 w-3 animate-pulse rounded-full bg-[var(--bad)]" /> Nagrywanie <b>{data.active.name}</b></div>
+            <div className="text-sm text-[var(--muted)]">{Object.entries(data.active.frame_counts).map(([c, n]) => `${c}: ${n}`).join(" · ")} · pominięte {data.active.dropped_frames}</div>
+            <Button variant="danger" onClick={() => stop.run()}>Zatrzymaj</Button>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            <Field label="Name (optional)" hint="letters, digits, _ - ."><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="session_…" /></Field>
-            <Button variant="primary" onClick={() => start.run()}>Start recording</Button>
-            <p className="text-xs text-[var(--muted)]">Saves every camera frame, timestamps, calibration and engine events, for replay and ground-truth evaluation.</p>
+            <Field label="Nazwa (opcjonalnie)" hint="litery, cyfry, _ - ."><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="session_…" /></Field>
+            <Button variant="primary" onClick={() => start.run()}>Zacznij nagrywać</Button>
+            <p className="text-xs text-[var(--muted)]">Zapisuje każdą klatkę z kamer, znaczniki czasu, kalibrację i zdarzenia silnika — do odtwarzania i oceny względem wzorca.</p>
           </div>
         )}
         <ErrorNote error={start.error ?? stop.error} />
       </Card>
-      <Card title="Recordings">
-        {!data?.recordings.length ? <Empty title="No recordings" /> : (
+      <Card title="Nagrania">
+        {!data?.recordings.length ? <Empty title="Brak nagrań" /> : (
           <div className="flex flex-col divide-y divide-[var(--border)]">
             {data.recordings.map((r) => (
               <div key={r.name} className="flex items-center gap-3 py-2">
                 <div className="flex-1">
-                  <div className="font-semibold">{r.name} {r.synthetic && <Badge tone="warn">synthetic</Badge>}</div>
-                  <div className="text-xs text-[var(--muted)]">{r.started_at && new Date(r.started_at).toLocaleString()} · {r.duration_s?.toFixed?.(1)} s · {Object.values(r.frame_counts ?? {}).join("/")} frames</div>
+                  <div className="font-semibold">{r.name} {r.synthetic && <Badge tone="warn">syntetyczne</Badge>}</div>
+                  <div className="text-xs text-[var(--muted)]">{r.started_at && new Date(r.started_at).toLocaleString("pl-PL")} · {r.duration_s?.toFixed?.(1)} s · klatki {Object.values(r.frame_counts ?? {}).join("/")}</div>
                 </div>
-                <Button size="sm" onClick={() => setOpen(r.name)}>Open</Button>
+                <Button size="sm" onClick={() => setOpen(r.name)}>Otwórz</Button>
               </div>
             ))}
           </div>
@@ -206,20 +210,20 @@ function RecordingViewer({ name, onClose }: { name: string; onClose: () => void 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
-        <Button onClick={onClose}>← Back</Button>
+        <Button onClick={onClose}>← Wróć</Button>
         <div className="font-display text-xl font-bold">{name}</div>
-        {data?.metadata?.synthetic && <Badge tone="warn">synthetic</Badge>}
+        {data?.metadata?.synthetic && <Badge tone="warn">syntetyczne</Badge>}
       </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <Card title="Frames — click the dart's entry point to annotate the true impact" pad={false}
+        <Card title="Klatki — kliknij miejsce wbicia lotki, aby oznaczyć prawdziwe trafienie" pad={false}
           actions={<Tabs value={c} onChange={(v) => setCam(v)} items={cams.map((x) => ({ id: x, label: x }))} />}>
           <div className="p-3">
             {frame ? (
               <img ref={imgRef} onClick={clickFrame} className="w-full cursor-crosshair rounded-lg" alt="frame" draggable={false}
                 src={`/api/recordings/${encodeURIComponent(name)}/frames/${c}/${frame.index}.jpg?overlay=board,sectors`} />
-            ) : <Empty title="No frames" />}
+            ) : <Empty title="Brak klatek" />}
             <div className="mt-3 flex items-center gap-3">
-              <Button size="sm" onClick={() => setPlaying(!playing)}>{playing ? "Pause" : "Play"}</Button>
+              <Button size="sm" onClick={() => setPlaying(!playing)}>{playing ? "Pauza" : "Odtwórz"}</Button>
               <Button size="sm" onClick={() => setPos(Math.max(0, pos - 1))}>‹</Button>
               <input type="range" min={0} max={Math.max(0, frames.length - 1)} value={pos} onChange={(e) => setPos(Number(e.target.value))} className="flex-1" />
               <Button size="sm" onClick={() => setPos(Math.min(frames.length - 1, pos + 1))}>›</Button>
@@ -227,26 +231,26 @@ function RecordingViewer({ name, onClose }: { name: string; onClose: () => void 
             </div>
             {pending && (
               <div className="mt-3 flex items-center gap-3 rounded-lg border border-[var(--warn)] p-2 text-sm">
-                True impact: <b>{pending.label}</b> ({pending.x_mm.toFixed(1)}, {pending.y_mm.toFixed(1)}) mm
-                <Button size="sm" variant="primary" onClick={() => annotate.run()}>Save ground truth</Button>
-                <Button size="sm" variant="ghost" onClick={() => setPending(null)}>Cancel</Button>
+                Prawdziwe trafienie: <b>{pending.label}</b> ({pending.x_mm.toFixed(1)}, {pending.y_mm.toFixed(1)}) mm
+                <Button size="sm" variant="primary" onClick={() => annotate.run()}>Zapisz wzorzec</Button>
+                <Button size="sm" variant="ghost" onClick={() => setPending(null)}>Anuluj</Button>
               </div>
             )}
             <ErrorNote error={annotate.error} />
           </div>
         </Card>
         <div className="flex flex-col gap-4">
-          <Card title="Predicted (●) vs ground truth (×)" actions={<Button size="sm" variant="primary" onClick={() => evaluate.run()} disabled={evaluate.busy}>{evaluate.busy ? "Replaying…" : "Replay & evaluate"}</Button>}>
+          <Card title="Odczyt (●) a wzorzec (×)" actions={<Button size="sm" variant="primary" onClick={() => evaluate.run()} disabled={evaluate.busy}>{evaluate.busy ? "Odtwarzanie…" : "Odtwórz i oceń"}</Button>}>
             <div className="aspect-square"><Dartboard board={board} markers={markers} /></div>
             <ErrorNote error={evaluate.error} />
             {ev?.metrics && (
               <div className="mt-3 grid grid-cols-2 gap-2">
-                <Stat label="Detected" value={`${ev.metrics.detected}/${ev.metrics.darts}`} />
-                <Stat label="Score accuracy" value={ev.metrics.score_accuracy != null ? `${(ev.metrics.score_accuracy * 100).toFixed(1)}%` : "–"} />
-                <Stat label="Mean error" value={ev.metrics.impact_error_mm ? `${ev.metrics.impact_error_mm.mean} mm` : "–"} />
-                <Stat label="p95 error" value={ev.metrics.impact_error_mm ? `${ev.metrics.impact_error_mm.p95} mm` : "–"} />
-                <Stat label="False positives" value={ev.metrics.false_positives} />
-                <Stat label="Missed" value={ev.metrics.missed} />
+                <Stat label="Wykryte" value={`${ev.metrics.detected}/${ev.metrics.darts}`} />
+                <Stat label="Trafność wyniku" value={ev.metrics.score_accuracy != null ? `${(ev.metrics.score_accuracy * 100).toFixed(1)}%` : "–"} />
+                <Stat label="Średni błąd" value={ev.metrics.impact_error_mm ? `${ev.metrics.impact_error_mm.mean} mm` : "–"} />
+                <Stat label="Błąd p95" value={ev.metrics.impact_error_mm ? `${ev.metrics.impact_error_mm.p95} mm` : "–"} />
+                <Stat label="Fałszywe wykrycia" value={ev.metrics.false_positives} />
+                <Stat label="Pominięte" value={ev.metrics.missed} />
               </div>
             )}
             {ev?.note && <div className="mt-2 text-sm text-[var(--muted)]">{ev.note}</div>}
@@ -254,14 +258,14 @@ function RecordingViewer({ name, onClose }: { name: string; onClose: () => void 
               <div className="mt-3 max-h-56 overflow-auto text-sm">
                 {ev.rows.map((r: any, i: number) => (
                   <div key={i} className="flex justify-between border-t border-[var(--border)] py-1">
-                    <span>{r.gt} → {r.detected ? r.pred : "missed"}</span>
+                    <span>{r.gt} → {r.detected ? r.pred : "pominięta"}</span>
                     <span className={clsx("tabular-nums", r.detected && r.pred !== r.gt && "text-[var(--bad)]")}>{r.detected ? `${r.error_mm.toFixed(2)} mm` : ""}</span>
                   </div>
                 ))}
               </div>
             )}
           </Card>
-          <Card title="Recorded events">
+          <Card title="Nagrane zdarzenia">
             <div className="max-h-64 overflow-auto text-xs">
               {(data?.events ?? []).map((e: any, i: number) => (
                 <div key={i} className="border-t border-[var(--border)] py-1">
@@ -279,28 +283,28 @@ function RecordingViewer({ name, onClose }: { name: string; onClose: () => void 
 // ---------------------------------------------------------------------------- benchmark, logs, events, system
 function Benchmark() {
   const { data, error } = useApi<any>("/api/benchmarks/latest");
-  if (error) return <Empty title="No benchmark yet">Run <code>python scripts/benchmark.py</code> on the server.</Empty>;
+  if (error) return <Empty title="Brak benchmarku">Uruchom <code>python scripts/benchmark.py</code> na serwerze.</Empty>;
   if (!data) return null;
   const o = data.overall;
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-xl border border-[var(--warn)]/50 bg-[color-mix(in_oklab,var(--warn)_10%,transparent)] p-3 text-sm">
-        {data.note} Generated {data.generated_at} · calibration mode <b>{data.settings.calibration}</b>.
+        {data.note} Wygenerowano {data.generated_at} · tryb kalibracji <b>{data.settings.calibration}</b>.
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Darts" value={o.darts_thrown} />
-        <Stat label="Detection rate" value={`${(o.detection_rate * 100).toFixed(1)}%`} />
-        <Stat label="Score accuracy" value={`${(o.score_accuracy_all_thrown * 100).toFixed(1)}%`} />
-        <Stat label="Wrong scores auto-accepted" value={o.wrong_auto_accepted} tone={o.wrong_auto_accepted ? "bad" : "good"} />
-        <Stat label="Impact error mean" value={`${o.impact_error_mm?.mean} mm`} />
-        <Stat label="Impact error p95" value={`${o.impact_error_mm?.p95} mm`} />
-        <Stat label="False positives / duplicates" value={`${o.false_positives} / ${o.duplicates}`} />
-        <Stat label="Flagged uncertain" value={`${(o.uncertain_rate * 100).toFixed(1)}%`} />
+        <Stat label="Lotki" value={o.darts_thrown} />
+        <Stat label="Wykrywalność" value={`${(o.detection_rate * 100).toFixed(1)}%`} />
+        <Stat label="Trafność wyniku" value={`${(o.score_accuracy_all_thrown * 100).toFixed(1)}%`} />
+        <Stat label="Błędne wyniki przyjęte automatycznie" value={o.wrong_auto_accepted} tone={o.wrong_auto_accepted ? "bad" : "good"} />
+        <Stat label="Średni błąd trafienia" value={`${o.impact_error_mm?.mean} mm`} />
+        <Stat label="Błąd trafienia p95" value={`${o.impact_error_mm?.p95} mm`} />
+        <Stat label="Fałszywe / duplikaty" value={`${o.false_positives} / ${o.duplicates}`} />
+        <Stat label="Oznaczone jako niepewne" value={`${(o.uncertain_rate * 100).toFixed(1)}%`} />
       </div>
-      <Card title="By condition">
+      <Card title="Według warunków">
         <div className="overflow-x-auto text-sm">
           <table className="w-full">
-            <thead className="text-left text-xs text-[var(--muted)]"><tr><th>Condition</th><th>Darts</th><th>Score acc.</th><th>Mean err</th><th>p95 err</th><th>FP</th><th>Uncertain</th></tr></thead>
+            <thead className="text-left text-xs text-[var(--muted)]"><tr><th>Warunki</th><th>Lotki</th><th>Trafność</th><th>Śr. błąd</th><th>Błąd p95</th><th>FP</th><th>Niepewne</th></tr></thead>
             <tbody>
               {Object.entries(data.by_condition as Record<string, any>).map(([k, m]) => (
                 <tr key={k} className="border-t border-[var(--border)] tabular-nums">
@@ -341,11 +345,11 @@ function Logs() {
     return () => { alive = false; clearInterval(t); };
   }, [level, text]);
   return (
-    <Card title="Logs" actions={<>
+    <Card title="Logi" actions={<>
       <select className={inputCls} value={level} onChange={(e) => setLevel(e.target.value)}>
-        <option value="">All levels</option><option>INFO</option><option>WARNING</option><option>ERROR</option>
+        <option value="">Wszystkie poziomy</option><option>INFO</option><option>WARNING</option><option>ERROR</option>
       </select>
-      <input className={inputCls} placeholder="filter" value={text} onChange={(e) => setText(e.target.value)} />
+      <input className={inputCls} placeholder="filtr" value={text} onChange={(e) => setText(e.target.value)} />
     </>}>
       <div className="max-h-[65vh] overflow-auto font-mono text-xs">
         {rows.map((r) => (
@@ -364,11 +368,11 @@ function Logs() {
 function Events() {
   const { data } = useApi<any[]>("/api/events?limit=300", 3000);
   return (
-    <Card title="Engine events (persisted)">
+    <Card title="Zdarzenia silnika (zapisane)">
       <div className="max-h-[65vh] overflow-auto text-xs">
         {data?.map((e) => (
           <div key={e.id} className="border-t border-[var(--border)] py-1">
-            <span className="text-[var(--muted)]">{new Date(e.created_at).toLocaleString()}</span> <b>{e.type}</b> <span className="font-mono">{JSON.stringify(e.data).slice(0, 200)}</span>
+            <span className="text-[var(--muted)]">{new Date(e.created_at).toLocaleString("pl-PL")}</span> <b>{e.type}</b> <span className="font-mono">{JSON.stringify(e.data).slice(0, 200)}</span>
           </div>
         ))}
       </div>

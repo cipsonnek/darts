@@ -39,7 +39,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   try {
     res = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   } catch (e) {
-    throw new ApiError(0, "Backend unreachable — is the DartSense server running?", e);
+    throw new ApiError(0, "Brak połączenia z serwerem — czy DartSense jest uruchomiony?", e);
   }
   if (res.status === 204) return undefined as T;
   const text = await res.text();

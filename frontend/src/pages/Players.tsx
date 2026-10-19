@@ -29,19 +29,19 @@ export default function Players() {
 
   return (
     <div>
-      <PageHeader title="Players" actions={<Button variant="ghost" onClick={() => setArchived(!archived)}>{archived ? "Hide archived" : "Show archived"}</Button>} />
+      <PageHeader title="Gracze" subtitle="Osoby, które rzucają na tej tarczy. Każdy ma własne statystyki." actions={<Button variant="ghost" onClick={() => setArchived(!archived)}>{archived ? "Ukryj zarchiwizowanych" : "Pokaż zarchiwizowanych"}</Button>} />
       <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
-        <Card title="Add player">
+        <Card title="Dodaj gracza">
           <form className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); add.run(); }}>
-            <Field label="Name"><input className={inputCls} value={name} maxLength={64} onChange={(e) => setName(e.target.value)} required /></Field>
+            <Field label="Imię"><input className={inputCls} value={name} maxLength={64} onChange={(e) => setName(e.target.value)} required /></Field>
             <ColorPicker value={color} onChange={setColor} />
             <ErrorNote error={add.error} />
-            <Button variant="primary" disabled={!name.trim() || add.busy}>Add</Button>
+            <Button variant="primary" disabled={!name.trim() || add.busy}>Dodaj</Button>
           </form>
         </Card>
-        <Card title="All players">
+        <Card title="Wszyscy gracze">
           <ErrorNote error={error} />
-          {!players?.length ? <Empty title="No players yet">Add the people who throw on this board.</Empty> : (
+          {!players?.length ? <Empty title="Brak graczy">Dodaj osoby, które rzucają na tej tarczy.</Empty> : (
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {players.map((p) => (
                 <div key={p.id} className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
@@ -49,10 +49,10 @@ export default function Players() {
                     {p.name.slice(0, 1).toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-semibold">{p.name} {p.archived && <span className="text-xs text-[var(--muted)]">(archived)</span>}</div>
-                    <Link to={`/stats?player=${p.id}`} className="text-xs text-[var(--accent)]">Statistics →</Link>
+                    <div className="truncate font-semibold">{p.name} {p.archived && <span className="text-xs text-[var(--muted)]">(archiwum)</span>}</div>
+                    <Link to={`/stats?player=${p.id}`} className="text-xs text-[var(--accent)]">Statystyki →</Link>
                   </div>
-                  <Button size="sm" variant="ghost" onClick={() => setEditing({ ...p })}>Edit</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setEditing({ ...p })}>Edytuj</Button>
                 </div>
               ))}
             </div>
@@ -62,16 +62,16 @@ export default function Players() {
       {editing && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={() => setEditing(null)}>
           <div className="w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-3 font-display text-lg font-bold">Edit player</div>
+            <div className="mb-3 font-display text-lg font-bold">Edytuj gracza</div>
             <div className="flex flex-col gap-3">
-              <Field label="Name"><input className={inputCls} value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></Field>
-              <Field label="Nickname"><input className={inputCls} value={editing.nickname ?? ""} onChange={(e) => setEditing({ ...editing, nickname: e.target.value })} /></Field>
+              <Field label="Imię"><input className={inputCls} value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></Field>
+              <Field label="Pseudonim"><input className={inputCls} value={editing.nickname ?? ""} onChange={(e) => setEditing({ ...editing, nickname: e.target.value })} /></Field>
               <ColorPicker value={editing.color} onChange={(c) => setEditing({ ...editing, color: c })} />
-              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editing.archived} onChange={(e) => setEditing({ ...editing, archived: e.target.checked })} /> Archived</label>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editing.archived} onChange={(e) => setEditing({ ...editing, archived: e.target.checked })} /> Zarchiwizowany</label>
               <ErrorNote error={save.error} />
               <div className="flex gap-2">
-                <Button className="flex-1" onClick={() => setEditing(null)}>Cancel</Button>
-                <Button className="flex-1" variant="primary" onClick={() => save.run(editing)}>Save</Button>
+                <Button className="flex-1" onClick={() => setEditing(null)}>Anuluj</Button>
+                <Button className="flex-1" variant="primary" onClick={() => save.run(editing)}>Zapisz</Button>
               </div>
             </div>
           </div>
@@ -83,7 +83,7 @@ export default function Players() {
 
 function ColorPicker({ value, onChange }: { value: string; onChange: (c: string) => void }) {
   return (
-    <Field label="Colour">
+    <Field label="Kolor">
       <div className="flex flex-wrap items-center gap-2">
         {COLORS.map((c) => (
           <button type="button" key={c} onClick={() => onChange(c)} aria-label={c}

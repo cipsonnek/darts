@@ -8,7 +8,7 @@ export function Card({ title, actions, children, className, pad = true }: {
     <section className={clsx("rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-sm", className)}>
       {(title || actions) && (
         <header className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3">
-          <h2 className="font-display text-sm font-semibold tracking-wide text-[var(--muted)] uppercase">{title}</h2>
+          <h2 className="font-display text-[13px] font-bold tracking-[0.08em] text-[var(--muted)] uppercase">{title}</h2>
           <div className="flex items-center gap-2">{actions}</div>
         </header>
       )}
@@ -25,7 +25,7 @@ export function Button({ variant = "secondary", size = "md", className, ...rest 
     <button
       {...rest}
       className={clsx(
-        "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition select-none",
+        "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition select-none [&_svg]:shrink-0",
         "disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-[var(--accent)]",
         size === "sm" && "px-2.5 py-1.5 text-xs",
         size === "md" && "px-3.5 py-2 text-sm",
@@ -59,8 +59,8 @@ export function Badge({ tone = "info", children, className }: { tone?: "info" | 
 export function Stat({ label, value, hint, tone }: { label: string; value: ReactNode; hint?: ReactNode; tone?: "good" | "warn" | "bad" }) {
   return (
     <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
-      <div className="text-xs text-[var(--muted)]">{label}</div>
-      <div className={clsx("font-display text-2xl font-bold tabular-nums",
+      <div className="text-xs font-medium text-[var(--muted)]">{label}</div>
+      <div className={clsx("font-score text-3xl font-bold leading-tight",
         tone === "good" && "text-[var(--good)]", tone === "warn" && "text-[var(--warn)]", tone === "bad" && "text-[var(--bad)]")}>{value}</div>
       {hint && <div className="text-xs text-[var(--muted)]">{hint}</div>}
     </div>
@@ -81,7 +81,7 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
         onClick={(e) => e.stopPropagation()} role="dialog" aria-modal>
         <header className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
           <h3 className="font-display text-lg font-bold">{title}</h3>
-          <button className="text-2xl leading-none text-[var(--muted)] hover:text-[var(--text)]" onClick={onClose} aria-label="Close">×</button>
+          <button className="text-2xl leading-none text-[var(--muted)] hover:text-[var(--text)]" onClick={onClose} aria-label="Zamknij">×</button>
         </header>
         <div className="p-5">{children}</div>
       </div>

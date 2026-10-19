@@ -1,7 +1,7 @@
 """Binds the game engine to persistence, detections and the live event stream.
 
 Flow of a detected dart:
-    vision event ──▶ Detection row ──▶ (active game?) ──▶ confident and nothing pending?
+    vision event ──▶ Detection row ──▶ (active game?) ──▶ confident (or auto_accept) and nothing pending?
                                                          ├─ yes: GameAction(dart) → replay → publish
                                                          └─ no:  detection 'pending' → UI asks the user
 Corrections never modify earlier rows: they append a ``correct``/``void_dart`` action and a
@@ -272,7 +272,8 @@ class GameService:
                         Detection.game_id == gid, Detection.status.in_(("pending", "queued")))) or 0
                 status = "unassigned"
                 if gid is not None:
-                    status = "pending" if d["uncertain"] else ("queued" if pending else "accepted")
+                    ask = d["uncertain"] and not self._auto_accept()
+                    status = "pending" if ask else ("queued" if pending else "accepted")
                 player_id = self._next_player_id(gid) if gid else None
                 det = Detection(id=d["dart_id"], game_id=gid, player_id=player_id, sector=d["score"]["sector"],
                                 multiplier=d["score"]["multiplier"], score=d["score"]["score"],
@@ -288,6 +289,11 @@ class GameService:
                 self._publish_state(state)
                 if status == "pending":
                     self.hub.publish("game", "dart_uncertain", {"game_id": gid, "detection": d})
+
+    def _auto_accept(self) -> bool:
+        """Whether uncertain darts are scored without asking (vision.scoring.auto_accept)."""
+        cfg = getattr(self.vision, "cfg", None)
+        return cfg.scoring.auto_accept if cfg is not None else True
 
     def pending(self, game_id: str | None = None) -> list[dict]:
         with self.db.session() as s:

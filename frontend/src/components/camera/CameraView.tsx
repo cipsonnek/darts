@@ -80,10 +80,10 @@ export function CameraView({ cameraId, name, overlay = [], view = "raw", width =
   return (
     <div className={clsx("relative overflow-hidden rounded-xl border border-[var(--border)] bg-black", className)}>
       {src && !failed ? (
-        <img ref={imgRef} src={src} alt={`Camera ${cameraId}`} className={clsx("block h-auto w-full", onImageClick && "cursor-crosshair")}
+        <img ref={imgRef} src={src} alt={`Kamera ${cameraId}`} className={clsx("block h-auto w-full", onImageClick && "cursor-crosshair")}
           onClick={click} draggable={false} />
       ) : (
-        <div className="grid aspect-video place-items-center text-sm text-[var(--muted)]">{failed ? `Reconnecting to ${cameraId}…` : "Loading…"}</div>
+        <div className="grid aspect-video place-items-center text-sm text-[var(--muted)]">{failed ? `Łączenie z ${cameraId}…` : "Ładowanie…"}</div>
       )}
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/70 to-transparent px-3 py-1.5 text-xs text-white">
         <span className="font-semibold">{name ?? cameraId}</span>

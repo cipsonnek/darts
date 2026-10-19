@@ -95,7 +95,7 @@ export function Dartboard({ board = DEFAULT_BOARD, markers = [], heat, onClick, 
       onClick={handleClick}
       style={{ cursor: onClick ? "crosshair" : undefined, display: "block", width: "100%", height: "100%" }}
       role="img"
-      aria-label="Dartboard"
+      aria-label="Tarcza"
     >
       <circle r={R} fill={pal.surround} />
       {wedges.map((w, i) => (
