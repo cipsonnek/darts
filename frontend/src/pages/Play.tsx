@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { Pause, Play as PlayIcon, RotateCcw, Trophy, Tv } from "lucide-react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { Dartboard } from "@/components/board/Dartboard";
 import { CameraView } from "@/components/camera/CameraView";
@@ -76,14 +77,17 @@ function CameraStrip() {
   const overlay = usePrefs((s) => s.cameraOverlay);
   const health = useLive((s) => s.cameras);
   const { data: cams } = useApi<CameraInfo[]>(widgets.cameras ? "/api/cameras" : null);
+  // A closed <details> still mounts its children: only render (and fetch) previews when open.
+  const [open, setOpen] = useState(false);
   if (!widgets.cameras || !cams) return null;
   return (
-    <details className="group rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+    <details className="group rounded-2xl border border-[var(--border)] bg-[var(--surface)]"
+      onToggle={(e) => setOpen(e.currentTarget.open)}>
       <summary className="cursor-pointer list-none px-4 py-3 text-[13px] font-bold tracking-[0.08em] text-[var(--muted)] uppercase select-none">
         <span className="inline-block transition group-open:rotate-90">›</span> Podgląd kamer
       </summary>
       <div className="grid grid-cols-1 gap-3 p-3 pt-0 sm:grid-cols-3">
-        {cams.filter((c) => c.enabled).map((c) => (
+        {open && cams.filter((c) => c.enabled).map((c) => (
           <CameraView key={c.id} cameraId={c.id} name={c.name} width={480} fps={6} overlay={overlay}
             health={health.find((h) => h.camera_id === c.id) ?? c.health} />
         ))}
