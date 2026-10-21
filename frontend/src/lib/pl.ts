@@ -76,6 +76,7 @@ export const DETECTION_STATUS: Record<string, string> = {
   pending: "oczekuje",
   rejected: "odrzucony",
   resolved: "rozstrzygnięty",
+  ignored: "pominięty (wyjmowanie)",
 };
 
 export const GRADE: Record<string, string> = { good: "dobra", fair: "średnia", poor: "słaba" };

@@ -98,7 +98,7 @@ class Detection(Base):
     y_mm: Mapped[float] = mapped_column(Float)
     confidence: Mapped[float] = mapped_column(Float)
     uncertain: Mapped[bool] = mapped_column(Boolean, default=False)
-    # accepted | pending | resolved | rejected | unassigned
+    # accepted | pending | queued | resolved | rejected | unassigned | ignored (seen during takeout)
     status: Mapped[str] = mapped_column(String(16), default="accepted", index=True)
     final_label: Mapped[str | None] = mapped_column(String(8), nullable=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)

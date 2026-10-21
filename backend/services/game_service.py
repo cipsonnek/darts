@@ -271,7 +271,12 @@ class GameService:
                     pending = s.scalar(select(func.count()).select_from(Detection).where(
                         Detection.game_id == gid, Detection.status.in_(("pending", "queued")))) or 0
                 status = "unassigned"
-                if gid is not None:
+                if gid is not None and self._during_takeout(gid):
+                    # The turn is over and its darts are still in the board: this is a dart
+                    # moving while it is pulled out, not the next player's first dart. The
+                    # next turn starts once the board is clear (or the user presses "next").
+                    status = "ignored"
+                elif gid is not None:
                     ask = d["uncertain"] and not self._auto_accept()
                     status = "pending" if ask else ("queued" if pending else "accepted")
                 player_id = self._next_player_id(gid) if gid else None
@@ -289,6 +294,15 @@ class GameService:
                 self._publish_state(state)
                 if status == "pending":
                     self.hub.publish("game", "dart_uncertain", {"game_id": gid, "detection": d})
+
+    def _during_takeout(self, game_id: str) -> bool:
+        """The current turn is complete and darts other than the one just detected are
+        still in the board."""
+        engine = self.vision.engine if self.vision is not None else None
+        if engine is None:
+            return False
+        st = self._recompute(game_id, persist=False)
+        return bool(st["state"]["awaiting_takeout"]) and len(engine.board_state) > 1
 
     def _auto_accept(self) -> bool:
         """Whether uncertain darts are scored without asking (vision.scoring.auto_accept)."""
