@@ -402,12 +402,16 @@ class GameService:
                     g.status = "finished"
                     g.finished_at = datetime.now(timezone.utc)
                     g.winner_player_id = players[st.winner]["id"] if st.winner is not None else None
+            state = st.to_dict()
+            # The engine names players by id; messages are shown to people ("Ala wins leg 1").
+            for p in players:
+                state["message"] = state["message"].replace(p["id"], p["name"])
             return {
                 "id": g.id, "mode": g.mode, "mode_name": mode.name, "status": g.status, "settings": g.settings,
                 "created_at": g.created_at.isoformat() if g.created_at else None,
                 "started_at": g.started_at.isoformat() if g.started_at else None,
                 "finished_at": g.finished_at.isoformat() if g.finished_at else None,
-                "players": players, "state": st.to_dict(), "player_summaries": summaries,
+                "players": players, "state": state, "player_summaries": summaries,
                 "checkout_hint": hint, "pending": pend,
                 "winner": players[st.winner] if st.winner is not None else None,
             }

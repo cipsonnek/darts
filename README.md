@@ -3,8 +3,10 @@
 Automatic dart scoring with three cameras: a local computer-vision engine, a game engine
 and a web UI you can open from any browser on the network.
 
-> **Accuracy status:** all accuracy numbers so far come from a synthetic 3-camera simulator
-> (`docs/benchmarks/`). Real-world accuracy has not been measured yet.
+> **Accuracy status:** accuracy numbers come from a synthetic 3-camera simulator
+> (`docs/benchmarks/`). On a real board (Winmau Blade 6 lying flat, three 720p webcams) all
+> darts thrown in the first tests were scored correctly, but no systematic real-world
+> measurement exists yet.
 
 ## Requirements
 
@@ -36,18 +38,30 @@ network (`http://<this-pc-ip>:8000`); Windows may ask to allow Python through th
 
 1. **Check Windows sees three cameras** (Device Manager → Cameras). Plug them into different
    USB ports, preferably on the back panel; avoid unpowered hubs.
-2. **Cameras page → Probe devices** lists every device index and whether it delivers images.
-   Identical cameras can be numbered in any order, so set the right index for Camera 1/2/3 in
-   each camera's **Configure** dialog, together with its position around the board
-   (clock angle: 0 = above the 20, 90 = right, 180 = below, 270 = left).
-3. **Calibration page** (board empty, lights on):
+2. **Kamery → Wybierz kamery** shows a live picture from every USB device. Click which
+   camera (1/2/3) each picture is. Identical webcams can swap numbers after re-plugging; if you
+   pick a device another camera uses, the two swap *together with their calibration and
+   position*, so no recalibration is needed. In each camera's **Konfiguruj** dialog set its
+   position around the board (clock angle: 0 = above the 20, 90 = right, 180 = below, 270 = left).
+3. **Kalibracja** (board empty, lights on):
    - optional but recommended: *Lens (intrinsics)* with the printable ChArUco target;
    - *Board position → Detect automatically* for each camera, check the overlay sits on the
-     wires, then *Accept calibration*.
-4. **Players → Games → Start game**, throw.
+     wires, then *Accept calibration*. If the board or a camera moves, the page says so;
+     repeat this step.
+4. **Players → Nowa gra → Rozpocznij grę**, throw. After a turn, pull the darts out: the next
+   player's turn starts when the board is empty (or with **Dalej**). Darts seen while the
+   previous turn is being pulled out are not scored.
+
+Uncertain darts are scored immediately and marked so they can be corrected (click the dart);
+set `vision.scoring.auto_accept: false` to confirm each of them instead.
 
 Settings for one machine (camera indices, ports) can also go in `configs/local.yaml`, which
-overrides `configs/default.yaml` and is not committed.
+overrides `configs/default.yaml` and is not committed. Changes made in the UI are saved to
+`data/runtime.yaml` (`data/runtime-simulator.yaml` in simulator mode) and win over both.
+
+**Tips for real cameras:** light the board evenly (an LED ring is ideal), mount it on the
+wall (a board lying loose shifts when darts are pulled), and keep the cameras 35–60° off the
+board's axis so each sees the whole board.
 
 ## Operator panel (fleet of boards in venues)
 
@@ -74,6 +88,7 @@ In development `npm run dev` proxies `/api/fleet` to the central server on port 
 .venv\Scripts\python.exe -m pytest -m "not slow"   # fast tests
 .venv\Scripts\python.exe -m pytest                 # everything (a few minutes)
 .venv\Scripts\python.exe scripts\benchmark.py --quick
+cd frontend; npm test; npm run lint                # frontend unit tests, typecheck + lint
 cd frontend; npm run dev                           # UI with hot reload on :5173 (backend on :8000)
 ```
 

@@ -67,6 +67,15 @@ def test_dart_seen_during_takeout_is_not_scored(tmp_path) -> None:
     assert st["state"]["current_player"] == 1 and st["player_summaries"][1]["remaining"] == 441
 
 
+def test_game_messages_use_player_names(tmp_path) -> None:
+    games, _engine, _ = _setup(tmp_path)
+    a = games.list_players()[0]
+    gid = games.create_game("x01", {"start_score": 101, "legs_to_win_set": 2}, [a["id"]])["id"]
+    for label in ("T20", "S1", "D20"):
+        st = games.throw(gid, label)
+    assert st["state"]["message"] == f"{a['name']} wins leg 1", st["state"]["message"]
+
+
 def test_throw_without_takeout_counts_after_board_empty(tmp_path) -> None:
     # Takeout missed by the cameras but the board is empty: the dart is the next player's.
     games, engine, gid = _setup(tmp_path)
