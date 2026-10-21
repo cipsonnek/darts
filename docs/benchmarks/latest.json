@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-10-01T21:13:20",
+  "generated_at": "2026-10-21T21:59:35",
   "synthetic": true,
   "note": "Synthetic rendered footage (vision/simulation). Not a real-world accuracy claim.",
   "settings": {
     "turns": 3,
-    "workers": 9,
+    "workers": 8,
     "fps": 20.0,
     "calibration": "auto",
     "conditions": "all",
@@ -27,20 +27,20 @@
     "duplicate_rate": 0.0,
     "unrecognized_change_events": 0,
     "impact_error_mm": {
-      "mean": 0.989,
-      "median": 0.42,
-      "p95": 2.973,
-      "max": 12.592
+      "mean": 0.757,
+      "median": 0.305,
+      "p95": 1.525,
+      "max": 16.286
     },
-    "score_accuracy_all_thrown": 0.963,
-    "score_accuracy_detected": 0.963,
-    "sector_accuracy_detected": 0.963,
-    "ring_accuracy_detected": 0.9753,
+    "score_accuracy_all_thrown": 0.9753,
+    "score_accuracy_detected": 0.9753,
+    "sector_accuracy_detected": 0.9877,
+    "ring_accuracy_detected": 0.9877,
     "accuracy_by_region": {
       "bull": 1.0,
-      "double": 0.875,
-      "triple": 1.0,
-      "single": 0.9655,
+      "double": 1.0,
+      "triple": 0.8889,
+      "single": 0.9828,
       "miss": 1.0
     },
     "count_by_region": {
@@ -50,61 +50,60 @@
       "single": 58,
       "miss": 5
     },
-    "uncertain_rate": 0.2593,
-    "auto_accepted_accuracy": 1.0,
-    "wrong_scores_flagged_uncertain": 1.0,
-    "wrong_auto_accepted": 0,
+    "uncertain_rate": 0.1728,
+    "auto_accepted_accuracy": 0.9851,
+    "wrong_scores_flagged_uncertain": 0.5,
+    "wrong_auto_accepted": 1,
     "confidence_calibration": {
-      "fraction_within_95pct_ellipse": 0.9259,
-      "fraction_within_68pct_ellipse": 0.8395
+      "fraction_within_95pct_ellipse": 0.9753,
+      "fraction_within_68pct_ellipse": 0.9259
     },
     "latency_s": {
       "mean": 0.659,
       "p95": 0.786
     },
     "processing_ms": {
-      "mean": 1141.19,
-      "p95": 1660.47,
-      "max": 1740.77
+      "mean": 1519.05,
+      "p95": 2367.16,
+      "max": 2436.69
     },
     "camera_count_used": {
-      "3": 70,
-      "2": 9,
-      "1": 2
+      "3": 69,
+      "2": 12
     },
     "worst_cases": [
       {
-        "gt": "S7",
-        "pred": "S7",
-        "error_mm": 12.59,
+        "gt": "T4",
+        "pred": "S4",
+        "error_mm": 16.29,
         "uncertain": true,
         "cameras": [
           "cam1",
           "cam3"
         ],
         "gt_impact": [
-          -49.8,
-          -84.0
+          84.6,
+          60.6
         ]
       },
       {
-        "gt": "S7",
-        "pred": "S19",
-        "error_mm": 5.75,
-        "uncertain": true,
+        "gt": "S13",
+        "pred": "S4",
+        "error_mm": 5.46,
+        "uncertain": false,
         "cameras": [
           "cam1",
           "cam3"
         ],
         "gt_impact": [
-          -51.6,
-          -100.5
+          97.9,
+          48.1
         ]
       },
       {
-        "gt": "S7",
-        "pred": "S7",
-        "error_mm": 4.58,
+        "gt": "S1",
+        "pred": "S1",
+        "error_mm": 3.41,
         "uncertain": false,
         "cameras": [
           "cam1",
@@ -112,29 +111,29 @@
           "cam3"
         ],
         "gt_impact": [
-          -67.5,
-          -118.9
+          30.9,
+          91.6
         ]
       },
       {
         "gt": "S20",
         "pred": "S20",
-        "error_mm": 3.41,
-        "uncertain": true,
+        "error_mm": 2.52,
+        "uncertain": false,
         "cameras": [
           "cam1",
           "cam2",
           "cam3"
         ],
         "gt_impact": [
-          2.3,
-          157.9
+          -8.4,
+          158.2
         ]
       },
       {
-        "gt": "MISS",
-        "pred": "MISS",
-        "error_mm": 2.97,
+        "gt": "S5",
+        "pred": "S5",
+        "error_mm": 1.53,
         "uncertain": true,
         "cameras": [
           "cam1",
@@ -142,14 +141,29 @@
           "cam3"
         ],
         "gt_impact": [
-          -5.3,
-          170.5
+          -27.2,
+          55.5
+        ]
+      },
+      {
+        "gt": "S16",
+        "pred": "S16",
+        "error_mm": 1.43,
+        "uncertain": false,
+        "cameras": [
+          "cam1",
+          "cam2",
+          "cam3"
+        ],
+        "gt_impact": [
+          -118.7,
+          -98.8
         ]
       },
       {
         "gt": "D7",
         "pred": "D7",
-        "error_mm": 2.85,
+        "error_mm": 1.39,
         "uncertain": false,
         "cameras": [
           "cam1",
@@ -162,9 +176,9 @@
         ]
       },
       {
-        "gt": "S7",
-        "pred": "S7",
-        "error_mm": 2.57,
+        "gt": "D7",
+        "pred": "D7",
+        "error_mm": 1.36,
         "uncertain": false,
         "cameras": [
           "cam1",
@@ -172,23 +186,8 @@
           "cam3"
         ],
         "gt_impact": [
-          -50.8,
-          -82.1
-        ]
-      },
-      {
-        "gt": "T19",
-        "pred": "T19",
-        "error_mm": 2.56,
-        "uncertain": true,
-        "cameras": [
-          "cam1",
-          "cam2",
-          "cam3"
-        ],
-        "gt_impact": [
-          -36.7,
-          -92.9
+          -92.7,
+          -133.6
         ]
       }
     ],
@@ -208,20 +207,20 @@
       "duplicate_rate": 0.0,
       "unrecognized_change_events": 0,
       "impact_error_mm": {
-        "mean": 1.401,
-        "median": 0.34,
-        "p95": 4.591,
-        "max": 5.749
+        "mean": 0.683,
+        "median": 0.523,
+        "p95": 1.278,
+        "max": 1.386
       },
-      "score_accuracy_all_thrown": 0.7778,
-      "score_accuracy_detected": 0.7778,
-      "sector_accuracy_detected": 0.7778,
-      "ring_accuracy_detected": 0.8889,
+      "score_accuracy_all_thrown": 1.0,
+      "score_accuracy_detected": 1.0,
+      "sector_accuracy_detected": 1.0,
+      "ring_accuracy_detected": 1.0,
       "accuracy_by_region": {
         "bull": null,
-        "double": 0.5,
+        "double": 1.0,
         "triple": 1.0,
-        "single": 0.75,
+        "single": 1.0,
         "miss": 1.0
       },
       "count_by_region": {
@@ -231,12 +230,12 @@
         "single": 4,
         "miss": 1
       },
-      "uncertain_rate": 0.3333,
+      "uncertain_rate": 0.2222,
       "auto_accepted_accuracy": 1.0,
-      "wrong_scores_flagged_uncertain": 1.0,
+      "wrong_scores_flagged_uncertain": null,
       "wrong_auto_accepted": 0,
       "confidence_calibration": {
-        "fraction_within_95pct_ellipse": 0.7778,
+        "fraction_within_95pct_ellipse": 1.0,
         "fraction_within_68pct_ellipse": 0.7778
       },
       "latency_s": {
@@ -244,9 +243,9 @@
         "p95": 0.823
       },
       "processing_ms": {
-        "mean": 1188.22,
-        "p95": 1610.43,
-        "max": 1688.95
+        "mean": 1618.02,
+        "p95": 2256.73,
+        "max": 2263.23
       },
       "camera_count_used": {
         "3": 8,
@@ -254,23 +253,9 @@
       },
       "worst_cases": [
         {
-          "gt": "S7",
-          "pred": "S19",
-          "error_mm": 5.75,
-          "uncertain": true,
-          "cameras": [
-            "cam1",
-            "cam3"
-          ],
-          "gt_impact": [
-            -51.6,
-            -100.5
-          ]
-        },
-        {
           "gt": "D7",
           "pred": "D7",
-          "error_mm": 2.85,
+          "error_mm": 1.39,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -283,54 +268,9 @@
           ]
         },
         {
-          "gt": "T19",
-          "pred": "T19",
-          "error_mm": 2.56,
-          "uncertain": true,
-          "cameras": [
-            "cam1",
-            "cam2",
-            "cam3"
-          ],
-          "gt_impact": [
-            -36.7,
-            -92.9
-          ]
-        },
-        {
-          "gt": "T13",
-          "pred": "T13",
-          "error_mm": 0.37,
-          "uncertain": false,
-          "cameras": [
-            "cam1",
-            "cam2",
-            "cam3"
-          ],
-          "gt_impact": [
-            103.6,
-            20.1
-          ]
-        },
-        {
-          "gt": "S6",
-          "pred": "S6",
-          "error_mm": 0.34,
-          "uncertain": false,
-          "cameras": [
-            "cam1",
-            "cam2",
-            "cam3"
-          ],
-          "gt_impact": [
-            79.0,
-            -7.4
-          ]
-        },
-        {
           "gt": "S7",
           "pred": "S7",
-          "error_mm": 0.22,
+          "error_mm": 1.12,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -343,9 +283,53 @@
           ]
         },
         {
+          "gt": "T19",
+          "pred": "T19",
+          "error_mm": 1.05,
+          "uncertain": false,
+          "cameras": [
+            "cam1",
+            "cam2"
+          ],
+          "gt_impact": [
+            -36.7,
+            -92.9
+          ]
+        },
+        {
+          "gt": "D2",
+          "pred": "D2",
+          "error_mm": 0.96,
+          "uncertain": true,
+          "cameras": [
+            "cam1",
+            "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            102.9,
+            -135.2
+          ]
+        },
+        {
+          "gt": "T13",
+          "pred": "T13",
+          "error_mm": 0.52,
+          "uncertain": false,
+          "cameras": [
+            "cam1",
+            "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            103.6,
+            20.1
+          ]
+        },
+        {
           "gt": "MISS",
           "pred": "MISS",
-          "error_mm": 0.2,
+          "error_mm": 0.51,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -358,9 +342,9 @@
           ]
         },
         {
-          "gt": "D2",
-          "pred": "MISS",
-          "error_mm": 0.19,
+          "gt": "S7",
+          "pred": "S7",
+          "error_mm": 0.44,
           "uncertain": true,
           "cameras": [
             "cam1",
@@ -368,8 +352,23 @@
             "cam3"
           ],
           "gt_impact": [
-            102.9,
-            -135.2
+            -51.6,
+            -100.5
+          ]
+        },
+        {
+          "gt": "S6",
+          "pred": "S6",
+          "error_mm": 0.1,
+          "uncertain": false,
+          "cameras": [
+            "cam1",
+            "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            79.0,
+            -7.4
           ]
         }
       ],
@@ -388,19 +387,19 @@
       "duplicate_rate": 0.0,
       "unrecognized_change_events": 0,
       "impact_error_mm": {
-        "mean": 0.411,
-        "median": 0.208,
-        "p95": 1.039,
-        "max": 1.221
+        "mean": 2.072,
+        "median": 0.249,
+        "p95": 10.113,
+        "max": 16.286
       },
-      "score_accuracy_all_thrown": 1.0,
-      "score_accuracy_detected": 1.0,
+      "score_accuracy_all_thrown": 0.8889,
+      "score_accuracy_detected": 0.8889,
       "sector_accuracy_detected": 1.0,
-      "ring_accuracy_detected": 1.0,
+      "ring_accuracy_detected": 0.8889,
       "accuracy_by_region": {
         "bull": null,
         "double": 1.0,
-        "triple": 1.0,
+        "triple": 0.5,
         "single": 1.0,
         "miss": null
       },
@@ -413,35 +412,33 @@
       },
       "uncertain_rate": 0.2222,
       "auto_accepted_accuracy": 1.0,
-      "wrong_scores_flagged_uncertain": null,
+      "wrong_scores_flagged_uncertain": 1.0,
       "wrong_auto_accepted": 0,
       "confidence_calibration": {
-        "fraction_within_95pct_ellipse": 1.0,
-        "fraction_within_68pct_ellipse": 1.0
+        "fraction_within_95pct_ellipse": 0.8889,
+        "fraction_within_68pct_ellipse": 0.7778
       },
       "latency_s": {
         "mean": 0.604,
         "p95": 0.687
       },
       "processing_ms": {
-        "mean": 1072.46,
-        "p95": 1515.29,
-        "max": 1525.4
+        "mean": 1454.84,
+        "p95": 2141.37,
+        "max": 2155.29
       },
       "camera_count_used": {
         "3": 7,
-        "2": 1,
-        "1": 1
+        "2": 2
       },
       "worst_cases": [
         {
           "gt": "T4",
-          "pred": "T4",
-          "error_mm": 1.22,
-          "uncertain": false,
+          "pred": "S4",
+          "error_mm": 16.29,
+          "uncertain": true,
           "cameras": [
             "cam1",
-            "cam2",
             "cam3"
           ],
           "gt_impact": [
@@ -450,22 +447,9 @@
           ]
         },
         {
-          "gt": "S12",
-          "pred": "S12",
-          "error_mm": 0.77,
-          "uncertain": true,
-          "cameras": [
-            "cam3"
-          ],
-          "gt_impact": [
-            -44.7,
-            71.1
-          ]
-        },
-        {
           "gt": "S16",
           "pred": "S16",
-          "error_mm": 0.57,
+          "error_mm": 0.85,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -478,9 +462,24 @@
           ]
         },
         {
-          "gt": "D15",
-          "pred": "D15",
-          "error_mm": 0.45,
+          "gt": "T13",
+          "pred": "T13",
+          "error_mm": 0.34,
+          "uncertain": true,
+          "cameras": [
+            "cam1",
+            "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            98.2,
+            16.0
+          ]
+        },
+        {
+          "gt": "S12",
+          "pred": "S12",
+          "error_mm": 0.28,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -488,14 +487,14 @@
             "cam3"
           ],
           "gt_impact": [
-            136.3,
-            -96.4
+            -44.7,
+            71.1
           ]
         },
         {
           "gt": "S15",
           "pred": "S15",
-          "error_mm": 0.21,
+          "error_mm": 0.25,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -508,23 +507,24 @@
           ]
         },
         {
-          "gt": "S5",
-          "pred": "S5",
-          "error_mm": 0.19,
+          "gt": "D15",
+          "pred": "D15",
+          "error_mm": 0.2,
           "uncertain": false,
           "cameras": [
             "cam1",
+            "cam2",
             "cam3"
           ],
           "gt_impact": [
-            -29.4,
-            114.2
+            136.3,
+            -96.4
           ]
         },
         {
           "gt": "S3",
           "pred": "S3",
-          "error_mm": 0.13,
+          "error_mm": 0.15,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -537,18 +537,18 @@
           ]
         },
         {
-          "gt": "T13",
-          "pred": "T13",
-          "error_mm": 0.12,
-          "uncertain": true,
+          "gt": "S2",
+          "pred": "S2",
+          "error_mm": 0.15,
+          "uncertain": false,
           "cameras": [
             "cam1",
             "cam2",
             "cam3"
           ],
           "gt_impact": [
-            98.2,
-            16.0
+            45.1,
+            -67.8
           ]
         }
       ],
@@ -567,20 +567,20 @@
       "duplicate_rate": 0.0,
       "unrecognized_change_events": 0,
       "impact_error_mm": {
-        "mean": 0.654,
-        "median": 0.389,
-        "p95": 1.91,
-        "max": 2.328
+        "mean": 0.857,
+        "median": 0.268,
+        "p95": 3.553,
+        "max": 5.456
       },
-      "score_accuracy_all_thrown": 1.0,
-      "score_accuracy_detected": 1.0,
-      "sector_accuracy_detected": 1.0,
+      "score_accuracy_all_thrown": 0.8889,
+      "score_accuracy_detected": 0.8889,
+      "sector_accuracy_detected": 0.8889,
       "ring_accuracy_detected": 1.0,
       "accuracy_by_region": {
         "bull": null,
         "double": 1.0,
         "triple": 1.0,
-        "single": 1.0,
+        "single": 0.8,
         "miss": 1.0
       },
       "count_by_region": {
@@ -590,10 +590,10 @@
         "single": 5,
         "miss": 1
       },
-      "uncertain_rate": 0.2222,
-      "auto_accepted_accuracy": 1.0,
-      "wrong_scores_flagged_uncertain": null,
-      "wrong_auto_accepted": 0,
+      "uncertain_rate": 0.0,
+      "auto_accepted_accuracy": 0.8889,
+      "wrong_scores_flagged_uncertain": 0.0,
+      "wrong_auto_accepted": 1,
       "confidence_calibration": {
         "fraction_within_95pct_ellipse": 0.8889,
         "fraction_within_68pct_ellipse": 0.8889
@@ -603,22 +603,22 @@
         "p95": 0.744
       },
       "processing_ms": {
-        "mean": 1119.66,
-        "p95": 1566.08,
-        "max": 1573.07
+        "mean": 1531.96,
+        "p95": 2173.67,
+        "max": 2294.21
       },
       "camera_count_used": {
-        "3": 6,
-        "2": 3
+        "3": 7,
+        "2": 2
       },
       "worst_cases": [
         {
           "gt": "S13",
-          "pred": "S13",
-          "error_mm": 2.33,
-          "uncertain": true,
+          "pred": "S4",
+          "error_mm": 5.46,
+          "uncertain": false,
           "cameras": [
-            "cam2",
+            "cam1",
             "cam3"
           ],
           "gt_impact": [
@@ -627,24 +627,9 @@
           ]
         },
         {
-          "gt": "S4",
-          "pred": "S4",
-          "error_mm": 1.28,
-          "uncertain": true,
-          "cameras": [
-            "cam1",
-            "cam2",
-            "cam3"
-          ],
-          "gt_impact": [
-            82.7,
-            44.1
-          ]
-        },
-        {
           "gt": "D20",
           "pred": "D20",
-          "error_mm": 0.65,
+          "error_mm": 0.7,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -657,9 +642,54 @@
           ]
         },
         {
+          "gt": "MISS",
+          "pred": "MISS",
+          "error_mm": 0.68,
+          "uncertain": false,
+          "cameras": [
+            "cam1",
+            "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            -12.7,
+            170.5
+          ]
+        },
+        {
+          "gt": "S4",
+          "pred": "S4",
+          "error_mm": 0.3,
+          "uncertain": false,
+          "cameras": [
+            "cam1",
+            "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            82.7,
+            44.1
+          ]
+        },
+        {
+          "gt": "T7",
+          "pred": "T7",
+          "error_mm": 0.27,
+          "uncertain": false,
+          "cameras": [
+            "cam1",
+            "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            -49.1,
+            -92.3
+          ]
+        },
+        {
           "gt": "T13",
           "pred": "T13",
-          "error_mm": 0.42,
+          "error_mm": 0.12,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -672,37 +702,24 @@
           ]
         },
         {
-          "gt": "S19",
-          "pred": "S19",
-          "error_mm": 0.39,
+          "gt": "S7",
+          "pred": "S7",
+          "error_mm": 0.1,
           "uncertain": false,
           "cameras": [
             "cam1",
+            "cam2",
             "cam3"
           ],
           "gt_impact": [
-            -50.7,
-            -119.4
-          ]
-        },
-        {
-          "gt": "T7",
-          "pred": "T7",
-          "error_mm": 0.36,
-          "uncertain": false,
-          "cameras": [
-            "cam1",
-            "cam2"
-          ],
-          "gt_impact": [
-            -49.1,
-            -92.3
+            -58.5,
+            -77.4
           ]
         },
         {
           "gt": "S20",
           "pred": "S20",
-          "error_mm": 0.21,
+          "error_mm": 0.05,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -712,21 +729,6 @@
           "gt_impact": [
             -7.1,
             147.7
-          ]
-        },
-        {
-          "gt": "MISS",
-          "pred": "MISS",
-          "error_mm": 0.17,
-          "uncertain": false,
-          "cameras": [
-            "cam1",
-            "cam2",
-            "cam3"
-          ],
-          "gt_impact": [
-            -12.7,
-            170.5
           ]
         }
       ],
@@ -745,10 +747,10 @@
       "duplicate_rate": 0.0,
       "unrecognized_change_events": 0,
       "impact_error_mm": {
-        "mean": 0.631,
-        "median": 0.375,
-        "p95": 1.582,
-        "max": 1.855
+        "mean": 0.586,
+        "median": 0.196,
+        "p95": 1.485,
+        "max": 1.525
       },
       "score_accuracy_all_thrown": 1.0,
       "score_accuracy_detected": 1.0,
@@ -768,7 +770,7 @@
         "single": 7,
         "miss": 1
       },
-      "uncertain_rate": 0.2222,
+      "uncertain_rate": 0.1111,
       "auto_accepted_accuracy": 1.0,
       "wrong_scores_flagged_uncertain": null,
       "wrong_auto_accepted": 0,
@@ -781,20 +783,19 @@
         "p95": 1.39
       },
       "processing_ms": {
-        "mean": 1131.17,
-        "p95": 1590.48,
-        "max": 1619.26
+        "mean": 777.61,
+        "p95": 935.32,
+        "max": 956.82
       },
       "camera_count_used": {
-        "3": 7,
-        "1": 1,
+        "3": 8,
         "2": 1
       },
       "worst_cases": [
         {
           "gt": "S5",
           "pred": "S5",
-          "error_mm": 1.85,
+          "error_mm": 1.53,
           "uncertain": true,
           "cameras": [
             "cam1",
@@ -807,9 +808,24 @@
           ]
         },
         {
+          "gt": "S16",
+          "pred": "S16",
+          "error_mm": 1.43,
+          "uncertain": false,
+          "cameras": [
+            "cam1",
+            "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            -118.7,
+            -98.8
+          ]
+        },
+        {
           "gt": "D16",
           "pred": "D16",
-          "error_mm": 1.17,
+          "error_mm": 1.13,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -822,52 +838,9 @@
           ]
         },
         {
-          "gt": "S3",
-          "pred": "S3",
-          "error_mm": 1.09,
-          "uncertain": false,
-          "cameras": [
-            "cam1",
-            "cam2",
-            "cam3"
-          ],
-          "gt_impact": [
-            -19.7,
-            -142.3
-          ]
-        },
-        {
-          "gt": "S16",
-          "pred": "S16",
-          "error_mm": 0.63,
-          "uncertain": true,
-          "cameras": [
-            "cam1"
-          ],
-          "gt_impact": [
-            -118.7,
-            -98.8
-          ]
-        },
-        {
-          "gt": "S10",
-          "pred": "S10",
-          "error_mm": 0.37,
-          "uncertain": false,
-          "cameras": [
-            "cam1",
-            "cam2",
-            "cam3"
-          ],
-          "gt_impact": [
-            123.8,
-            -49.4
-          ]
-        },
-        {
           "gt": "S18",
           "pred": "S18",
-          "error_mm": 0.18,
+          "error_mm": 0.5,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -880,9 +853,24 @@
           ]
         },
         {
+          "gt": "S12",
+          "pred": "S12",
+          "error_mm": 0.2,
+          "uncertain": false,
+          "cameras": [
+            "cam1",
+            "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            -88.4,
+            101.5
+          ]
+        },
+        {
           "gt": "MISS",
           "pred": "MISS",
-          "error_mm": 0.15,
+          "error_mm": 0.19,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -894,8 +882,8 @@
           ]
         },
         {
-          "gt": "S12",
-          "pred": "S12",
+          "gt": "S10",
+          "pred": "S10",
           "error_mm": 0.12,
           "uncertain": false,
           "cameras": [
@@ -904,8 +892,23 @@
             "cam3"
           ],
           "gt_impact": [
-            -88.4,
-            101.5
+            123.8,
+            -49.4
+          ]
+        },
+        {
+          "gt": "S3",
+          "pred": "S3",
+          "error_mm": 0.1,
+          "uncertain": false,
+          "cameras": [
+            "cam1",
+            "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            -19.7,
+            -142.3
           ]
         }
       ],
@@ -924,15 +927,15 @@
       "duplicate_rate": 0.0,
       "unrecognized_change_events": 0,
       "impact_error_mm": {
-        "mean": 2.011,
-        "median": 0.609,
-        "p95": 8.235,
-        "max": 12.592
+        "mean": 0.432,
+        "median": 0.254,
+        "p95": 1.08,
+        "max": 1.212
       },
       "score_accuracy_all_thrown": 1.0,
       "score_accuracy_detected": 1.0,
       "sector_accuracy_detected": 1.0,
-      "ring_accuracy_detected": 0.8889,
+      "ring_accuracy_detected": 1.0,
       "accuracy_by_region": {
         "bull": 1.0,
         "double": null,
@@ -947,35 +950,51 @@
         "single": 8,
         "miss": 0
       },
-      "uncertain_rate": 0.1111,
+      "uncertain_rate": 0.0,
       "auto_accepted_accuracy": 1.0,
       "wrong_scores_flagged_uncertain": null,
       "wrong_auto_accepted": 0,
       "confidence_calibration": {
-        "fraction_within_95pct_ellipse": 0.8889,
-        "fraction_within_68pct_ellipse": 0.5556
+        "fraction_within_95pct_ellipse": 1.0,
+        "fraction_within_68pct_ellipse": 1.0
       },
       "latency_s": {
         "mean": 0.642,
         "p95": 0.737
       },
       "processing_ms": {
-        "mean": 1106.88,
-        "p95": 1660.47,
-        "max": 1740.77
+        "mean": 1628.33,
+        "p95": 2361.68,
+        "max": 2426.89
       },
       "camera_count_used": {
-        "3": 7,
-        "2": 2
+        "3": 8,
+        "2": 1
       },
       "worst_cases": [
         {
-          "gt": "S7",
-          "pred": "S7",
-          "error_mm": 12.59,
-          "uncertain": true,
+          "gt": "S12",
+          "pred": "S12",
+          "error_mm": 1.21,
+          "uncertain": false,
           "cameras": [
             "cam1",
+            "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            -98.8,
+            114.6
+          ]
+        },
+        {
+          "gt": "S7",
+          "pred": "S7",
+          "error_mm": 0.88,
+          "uncertain": false,
+          "cameras": [
+            "cam1",
+            "cam2",
             "cam3"
           ],
           "gt_impact": [
@@ -984,38 +1003,9 @@
           ]
         },
         {
-          "gt": "S12",
-          "pred": "S12",
-          "error_mm": 1.7,
-          "uncertain": false,
-          "cameras": [
-            "cam1",
-            "cam2"
-          ],
-          "gt_impact": [
-            -98.8,
-            114.6
-          ]
-        },
-        {
           "gt": "S19",
           "pred": "S19",
-          "error_mm": 1.64,
-          "uncertain": false,
-          "cameras": [
-            "cam1",
-            "cam2",
-            "cam3"
-          ],
-          "gt_impact": [
-            -47.9,
-            -101.9
-          ]
-        },
-        {
-          "gt": "S19",
-          "pred": "S19",
-          "error_mm": 0.83,
+          "error_mm": 0.79,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -1028,9 +1018,9 @@
           ]
         },
         {
-          "gt": "S18",
-          "pred": "S18",
-          "error_mm": 0.61,
+          "gt": "S19",
+          "pred": "S19",
+          "error_mm": 0.45,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -1038,14 +1028,14 @@
             "cam3"
           ],
           "gt_impact": [
-            22.6,
-            28.3
+            -47.9,
+            -101.9
           ]
         },
         {
-          "gt": "25",
-          "pred": "25",
-          "error_mm": 0.41,
+          "gt": "S2",
+          "pred": "S2",
+          "error_mm": 0.25,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -1053,14 +1043,14 @@
             "cam3"
           ],
           "gt_impact": [
-            7.2,
-            4.1
+            36.5,
+            -38.8
           ]
         },
         {
           "gt": "S3",
           "pred": "S3",
-          "error_mm": 0.25,
+          "error_mm": 0.16,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -1073,9 +1063,23 @@
           ]
         },
         {
-          "gt": "S2",
-          "pred": "S2",
-          "error_mm": 0.04,
+          "gt": "25",
+          "pred": "25",
+          "error_mm": 0.11,
+          "uncertain": false,
+          "cameras": [
+            "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            7.2,
+            4.1
+          ]
+        },
+        {
+          "gt": "S18",
+          "pred": "S18",
+          "error_mm": 0.02,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -1083,8 +1087,8 @@
             "cam3"
           ],
           "gt_impact": [
-            59.1,
-            -111.9
+            22.6,
+            28.3
           ]
         }
       ],
@@ -1103,10 +1107,10 @@
       "duplicate_rate": 0.0,
       "unrecognized_change_events": 0,
       "impact_error_mm": {
-        "mean": 1.084,
-        "median": 0.573,
-        "p95": 3.576,
-        "max": 4.582
+        "mean": 0.575,
+        "median": 0.488,
+        "p95": 1.342,
+        "max": 1.358
       },
       "score_accuracy_all_thrown": 1.0,
       "score_accuracy_detected": 1.0,
@@ -1131,41 +1135,27 @@
       "wrong_scores_flagged_uncertain": null,
       "wrong_auto_accepted": 0,
       "confidence_calibration": {
-        "fraction_within_95pct_ellipse": 0.8889,
-        "fraction_within_68pct_ellipse": 0.8889
+        "fraction_within_95pct_ellipse": 1.0,
+        "fraction_within_68pct_ellipse": 1.0
       },
       "latency_s": {
         "mean": 0.642,
         "p95": 0.766
       },
       "processing_ms": {
-        "mean": 1116.26,
-        "p95": 1598.64,
-        "max": 1622.36
+        "mean": 1578.19,
+        "p95": 2300.1,
+        "max": 2340.08
       },
       "camera_count_used": {
-        "3": 9
+        "3": 8,
+        "2": 1
       },
       "worst_cases": [
         {
-          "gt": "S7",
-          "pred": "S7",
-          "error_mm": 4.58,
-          "uncertain": false,
-          "cameras": [
-            "cam1",
-            "cam2",
-            "cam3"
-          ],
-          "gt_impact": [
-            -67.5,
-            -118.9
-          ]
-        },
-        {
           "gt": "D7",
           "pred": "D7",
-          "error_mm": 2.07,
+          "error_mm": 1.36,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -1178,9 +1168,9 @@
           ]
         },
         {
-          "gt": "S16",
-          "pred": "S16",
-          "error_mm": 0.88,
+          "gt": "S7",
+          "pred": "S7",
+          "error_mm": 1.32,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -1188,23 +1178,8 @@
             "cam3"
           ],
           "gt_impact": [
-            -111.9,
-            -60.4
-          ]
-        },
-        {
-          "gt": "S5",
-          "pred": "S5",
-          "error_mm": 0.63,
-          "uncertain": false,
-          "cameras": [
-            "cam1",
-            "cam2",
-            "cam3"
-          ],
-          "gt_impact": [
-            -23.5,
-            92.6
+            -67.5,
+            -118.9
           ]
         },
         {
@@ -1225,7 +1200,7 @@
         {
           "gt": "S3",
           "pred": "S3",
-          "error_mm": 0.44,
+          "error_mm": 0.54,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -1240,7 +1215,7 @@
         {
           "gt": "D14",
           "pred": "D14",
-          "error_mm": 0.39,
+          "error_mm": 0.49,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -1253,9 +1228,24 @@
           ]
         },
         {
+          "gt": "S16",
+          "pred": "S16",
+          "error_mm": 0.43,
+          "uncertain": false,
+          "cameras": [
+            "cam1",
+            "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            -111.9,
+            -60.4
+          ]
+        },
+        {
           "gt": "S3",
           "pred": "S3",
-          "error_mm": 0.18,
+          "error_mm": 0.32,
           "uncertain": true,
           "cameras": [
             "cam1",
@@ -1265,6 +1255,20 @@
           "gt_impact": [
             -7.2,
             -47.3
+          ]
+        },
+        {
+          "gt": "S5",
+          "pred": "S5",
+          "error_mm": 0.14,
+          "uncertain": false,
+          "cameras": [
+            "cam1",
+            "cam2"
+          ],
+          "gt_impact": [
+            -23.5,
+            92.6
           ]
         }
       ],
@@ -1283,10 +1287,10 @@
       "duplicate_rate": 0.0,
       "unrecognized_change_events": 0,
       "impact_error_mm": {
-        "mean": 0.689,
-        "median": 0.356,
-        "p95": 1.815,
-        "max": 2.194
+        "mean": 0.664,
+        "median": 0.237,
+        "p95": 2.308,
+        "max": 3.413
       },
       "score_accuracy_all_thrown": 1.0,
       "score_accuracy_detected": 1.0,
@@ -1306,22 +1310,22 @@
         "single": 6,
         "miss": 1
       },
-      "uncertain_rate": 0.2222,
+      "uncertain_rate": 0.3333,
       "auto_accepted_accuracy": 1.0,
       "wrong_scores_flagged_uncertain": null,
       "wrong_auto_accepted": 0,
       "confidence_calibration": {
-        "fraction_within_95pct_ellipse": 0.8889,
-        "fraction_within_68pct_ellipse": 0.7778
+        "fraction_within_95pct_ellipse": 1.0,
+        "fraction_within_68pct_ellipse": 1.0
       },
       "latency_s": {
         "mean": 0.601,
         "p95": 0.675
       },
       "processing_ms": {
-        "mean": 1315.53,
-        "p95": 1655.59,
-        "max": 1676.14
+        "mean": 1909.68,
+        "p95": 2367.16,
+        "max": 2436.69
       },
       "camera_count_used": {
         "3": 8,
@@ -1331,11 +1335,12 @@
         {
           "gt": "S1",
           "pred": "S1",
-          "error_mm": 2.19,
+          "error_mm": 3.41,
           "uncertain": false,
           "cameras": [
             "cam1",
-            "cam2"
+            "cam2",
+            "cam3"
           ],
           "gt_impact": [
             30.9,
@@ -1345,7 +1350,7 @@
         {
           "gt": "D6",
           "pred": "D6",
-          "error_mm": 1.25,
+          "error_mm": 0.65,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -1360,7 +1365,7 @@
         {
           "gt": "S16",
           "pred": "S16",
-          "error_mm": 1.19,
+          "error_mm": 0.45,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -1373,54 +1378,9 @@
           ]
         },
         {
-          "gt": "S10",
-          "pred": "S10",
-          "error_mm": 0.48,
-          "uncertain": false,
-          "cameras": [
-            "cam1",
-            "cam2",
-            "cam3"
-          ],
-          "gt_impact": [
-            111.4,
-            -50.4
-          ]
-        },
-        {
-          "gt": "S17",
-          "pred": "S17",
-          "error_mm": 0.36,
-          "uncertain": false,
-          "cameras": [
-            "cam1",
-            "cam2",
-            "cam3"
-          ],
-          "gt_impact": [
-            66.8,
-            -132.8
-          ]
-        },
-        {
-          "gt": "S12",
-          "pred": "S12",
-          "error_mm": 0.23,
-          "uncertain": false,
-          "cameras": [
-            "cam1",
-            "cam2",
-            "cam3"
-          ],
-          "gt_impact": [
-            -58.8,
-            77.2
-          ]
-        },
-        {
           "gt": "T3",
           "pred": "T3",
-          "error_mm": 0.19,
+          "error_mm": 0.39,
           "uncertain": true,
           "cameras": [
             "cam1",
@@ -1433,9 +1393,38 @@
           ]
         },
         {
+          "gt": "S12",
+          "pred": "S12",
+          "error_mm": 0.24,
+          "uncertain": false,
+          "cameras": [
+            "cam1",
+            "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            -58.8,
+            77.2
+          ]
+        },
+        {
+          "gt": "S17",
+          "pred": "S17",
+          "error_mm": 0.24,
+          "uncertain": true,
+          "cameras": [
+            "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            66.8,
+            -132.8
+          ]
+        },
+        {
           "gt": "MISS",
           "pred": "MISS",
-          "error_mm": 0.18,
+          "error_mm": 0.23,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -1445,6 +1434,21 @@
           "gt_impact": [
             44.3,
             170.8
+          ]
+        },
+        {
+          "gt": "S10",
+          "pred": "S10",
+          "error_mm": 0.2,
+          "uncertain": false,
+          "cameras": [
+            "cam1",
+            "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            111.4,
+            -50.4
           ]
         }
       ],
@@ -1463,20 +1467,20 @@
       "duplicate_rate": 0.0,
       "unrecognized_change_events": 0,
       "impact_error_mm": {
-        "mean": 1.676,
-        "median": 1.617,
-        "p95": 3.238,
-        "max": 3.414
+        "mean": 0.8,
+        "median": 0.554,
+        "p95": 2.035,
+        "max": 2.521
       },
-      "score_accuracy_all_thrown": 0.8889,
-      "score_accuracy_detected": 0.8889,
-      "sector_accuracy_detected": 0.8889,
+      "score_accuracy_all_thrown": 1.0,
+      "score_accuracy_detected": 1.0,
+      "sector_accuracy_detected": 1.0,
       "ring_accuracy_detected": 1.0,
       "accuracy_by_region": {
         "bull": null,
         "double": null,
         "triple": 1.0,
-        "single": 0.8333,
+        "single": 1.0,
         "miss": 1.0
       },
       "count_by_region": {
@@ -1486,35 +1490,65 @@
         "single": 6,
         "miss": 1
       },
-      "uncertain_rate": 0.4444,
+      "uncertain_rate": 0.2222,
       "auto_accepted_accuracy": 1.0,
-      "wrong_scores_flagged_uncertain": 1.0,
+      "wrong_scores_flagged_uncertain": null,
       "wrong_auto_accepted": 0,
       "confidence_calibration": {
         "fraction_within_95pct_ellipse": 1.0,
-        "fraction_within_68pct_ellipse": 0.7778
+        "fraction_within_68pct_ellipse": 1.0
       },
       "latency_s": {
         "mean": 0.733,
         "p95": 1.033
       },
       "processing_ms": {
-        "mean": 1114.19,
-        "p95": 1521.21,
-        "max": 1548.46
+        "mean": 1674.09,
+        "p95": 2261.76,
+        "max": 2371.51
       },
       "camera_count_used": {
-        "3": 9
+        "3": 7,
+        "2": 2
       },
       "worst_cases": [
         {
           "gt": "S20",
           "pred": "S20",
-          "error_mm": 3.41,
-          "uncertain": true,
+          "error_mm": 2.52,
+          "uncertain": false,
           "cameras": [
             "cam1",
             "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            -8.4,
+            158.2
+          ]
+        },
+        {
+          "gt": "S4",
+          "pred": "S4",
+          "error_mm": 1.31,
+          "uncertain": false,
+          "cameras": [
+            "cam1",
+            "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            96.0,
+            52.7
+          ]
+        },
+        {
+          "gt": "S20",
+          "pred": "S20",
+          "error_mm": 0.74,
+          "uncertain": false,
+          "cameras": [
+            "cam1",
             "cam3"
           ],
           "gt_impact": [
@@ -1523,24 +1557,23 @@
           ]
         },
         {
-          "gt": "MISS",
-          "pred": "MISS",
-          "error_mm": 2.97,
+          "gt": "T4",
+          "pred": "T4",
+          "error_mm": 0.6,
           "uncertain": true,
           "cameras": [
             "cam1",
-            "cam2",
             "cam3"
           ],
           "gt_impact": [
-            -5.3,
-            170.5
+            78.0,
+            62.4
           ]
         },
         {
           "gt": "S7",
           "pred": "S7",
-          "error_mm": 2.57,
+          "error_mm": 0.55,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -1554,9 +1587,9 @@
         },
         {
           "gt": "S7",
-          "pred": "S19",
-          "error_mm": 2.32,
-          "uncertain": true,
+          "pred": "S7",
+          "error_mm": 0.54,
+          "uncertain": false,
           "cameras": [
             "cam1",
             "cam2",
@@ -1568,9 +1601,9 @@
           ]
         },
         {
-          "gt": "T13",
-          "pred": "T13",
-          "error_mm": 1.62,
+          "gt": "MISS",
+          "pred": "MISS",
+          "error_mm": 0.39,
           "uncertain": true,
           "cameras": [
             "cam1",
@@ -1578,29 +1611,14 @@
             "cam3"
           ],
           "gt_impact": [
-            93.0,
-            41.4
-          ]
-        },
-        {
-          "gt": "T4",
-          "pred": "T4",
-          "error_mm": 1.18,
-          "uncertain": false,
-          "cameras": [
-            "cam1",
-            "cam2",
-            "cam3"
-          ],
-          "gt_impact": [
-            78.0,
-            62.4
+            -5.3,
+            170.5
           ]
         },
         {
           "gt": "S19",
           "pred": "S19",
-          "error_mm": 0.49,
+          "error_mm": 0.3,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -1610,21 +1628,6 @@
           "gt_impact": [
             -37.5,
             -90.1
-          ]
-        },
-        {
-          "gt": "S20",
-          "pred": "S20",
-          "error_mm": 0.42,
-          "uncertain": false,
-          "cameras": [
-            "cam1",
-            "cam2",
-            "cam3"
-          ],
-          "gt_impact": [
-            -8.4,
-            158.2
           ]
         }
       ],
@@ -1643,10 +1646,10 @@
       "duplicate_rate": 0.0,
       "unrecognized_change_events": 0,
       "impact_error_mm": {
-        "mean": 0.346,
-        "median": 0.246,
-        "p95": 0.676,
-        "max": 0.766
+        "mean": 0.149,
+        "median": 0.14,
+        "p95": 0.297,
+        "max": 0.347
       },
       "score_accuracy_all_thrown": 1.0,
       "score_accuracy_detected": 1.0,
@@ -1666,7 +1669,7 @@
         "single": 9,
         "miss": 0
       },
-      "uncertain_rate": 0.4444,
+      "uncertain_rate": 0.3333,
       "auto_accepted_accuracy": 1.0,
       "wrong_scores_flagged_uncertain": null,
       "wrong_auto_accepted": 0,
@@ -1679,33 +1682,34 @@
         "p95": 0.741
       },
       "processing_ms": {
-        "mean": 1106.31,
-        "p95": 1580.93,
-        "max": 1657.75
+        "mean": 1498.74,
+        "p95": 2030.47,
+        "max": 2041.26
       },
       "camera_count_used": {
-        "3": 9
+        "3": 8,
+        "2": 1
       },
       "worst_cases": [
         {
-          "gt": "S18",
-          "pred": "S18",
-          "error_mm": 0.77,
-          "uncertain": true,
+          "gt": "S4",
+          "pred": "S4",
+          "error_mm": 0.35,
+          "uncertain": false,
           "cameras": [
             "cam1",
             "cam2",
             "cam3"
           ],
           "gt_impact": [
-            75.0,
-            143.2
+            108.7,
+            108.1
           ]
         },
         {
           "gt": "S19",
           "pred": "S19",
-          "error_mm": 0.54,
+          "error_mm": 0.22,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -1718,69 +1722,9 @@
           ]
         },
         {
-          "gt": "S9",
-          "pred": "S9",
-          "error_mm": 0.53,
-          "uncertain": false,
-          "cameras": [
-            "cam1",
-            "cam2",
-            "cam3"
-          ],
-          "gt_impact": [
-            -48.1,
-            27.0
-          ]
-        },
-        {
-          "gt": "S4",
-          "pred": "S4",
-          "error_mm": 0.29,
-          "uncertain": true,
-          "cameras": [
-            "cam1",
-            "cam2",
-            "cam3"
-          ],
-          "gt_impact": [
-            108.7,
-            108.1
-          ]
-        },
-        {
           "gt": "S18",
           "pred": "S18",
-          "error_mm": 0.25,
-          "uncertain": false,
-          "cameras": [
-            "cam1",
-            "cam2",
-            "cam3"
-          ],
-          "gt_impact": [
-            97.7,
-            99.5
-          ]
-        },
-        {
-          "gt": "S6",
-          "pred": "S6",
-          "error_mm": 0.24,
-          "uncertain": true,
-          "cameras": [
-            "cam1",
-            "cam2",
-            "cam3"
-          ],
-          "gt_impact": [
-            97.1,
-            -14.9
-          ]
-        },
-        {
-          "gt": "S18",
-          "pred": "S18",
-          "error_mm": 0.23,
+          "error_mm": 0.15,
           "uncertain": false,
           "cameras": [
             "cam1",
@@ -1793,13 +1737,72 @@
           ]
         },
         {
-          "gt": "S3",
-          "pred": "S3",
-          "error_mm": 0.13,
+          "gt": "S10",
+          "pred": "S10",
+          "error_mm": 0.15,
+          "uncertain": false,
+          "cameras": [
+            "cam1",
+            "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            86.0,
+            -15.1
+          ]
+        },
+        {
+          "gt": "S18",
+          "pred": "S18",
+          "error_mm": 0.14,
           "uncertain": true,
           "cameras": [
             "cam1",
             "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            75.0,
+            143.2
+          ]
+        },
+        {
+          "gt": "S9",
+          "pred": "S9",
+          "error_mm": 0.14,
+          "uncertain": false,
+          "cameras": [
+            "cam1",
+            "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            -48.1,
+            27.0
+          ]
+        },
+        {
+          "gt": "S6",
+          "pred": "S6",
+          "error_mm": 0.09,
+          "uncertain": true,
+          "cameras": [
+            "cam1",
+            "cam2",
+            "cam3"
+          ],
+          "gt_impact": [
+            97.1,
+            -14.9
+          ]
+        },
+        {
+          "gt": "S3",
+          "pred": "S3",
+          "error_mm": 0.05,
+          "uncertain": true,
+          "cameras": [
+            "cam1",
             "cam3"
           ],
           "gt_impact": [
@@ -1812,47 +1815,6 @@
     }
   },
   "calibration": {
-    "dim-uniform": {
-      "cam1": {
-        "grade": "good",
-        "edge_rms_px": 0.242,
-        "inlier_fraction": 0.969,
-        "visible_samples": 3302,
-        "inlier_samples": 3198,
-        "pose_sigma_mm": 0.011,
-        "iterations": 8,
-        "converged": true,
-        "focal_refined": false,
-        "initial_rms_px": 2.241,
-        "true_shift_mm": 0.0157
-      },
-      "cam2": {
-        "grade": "good",
-        "edge_rms_px": 0.223,
-        "inlier_fraction": 0.965,
-        "visible_samples": 3302,
-        "inlier_samples": 3187,
-        "pose_sigma_mm": 0.01,
-        "iterations": 8,
-        "converged": true,
-        "focal_refined": false,
-        "initial_rms_px": 2.107,
-        "true_shift_mm": 0.0277
-      },
-      "cam3": {
-        "grade": "good",
-        "edge_rms_px": 0.24,
-        "inlier_fraction": 0.962,
-        "visible_samples": 3302,
-        "inlier_samples": 3178,
-        "pose_sigma_mm": 0.012,
-        "iterations": 8,
-        "converged": true,
-        "focal_refined": false,
-        "initial_rms_px": 2.485,
-        "true_shift_mm": 0.041
-      }
-    },
     "neutral-lightchange": {
       "cam1": {
         "grade": "good",
@@ -1864,7 +1826,7 @@
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.252,
+        "initial_rms_px": 2.236,
         "true_shift_mm": 0.017
       },
       "cam2": {
@@ -1877,7 +1839,7 @@
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.074,
+        "initial_rms_px": 2.13,
         "true_shift_mm": 0.0286
       },
       "cam3": {
@@ -1890,7 +1852,7 @@
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.473,
+        "initial_rms_px": 2.423,
         "true_shift_mm": 0.0487
       }
     },
@@ -1905,7 +1867,7 @@
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.272,
+        "initial_rms_px": 2.319,
         "true_shift_mm": 0.0148
       },
       "cam2": {
@@ -1918,7 +1880,7 @@
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.099,
+        "initial_rms_px": 2.151,
         "true_shift_mm": 0.0319
       },
       "cam3": {
@@ -1931,8 +1893,49 @@
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.434,
+        "initial_rms_px": 2.436,
         "true_shift_mm": 0.0418
+      }
+    },
+    "dim-uniform": {
+      "cam1": {
+        "grade": "good",
+        "edge_rms_px": 0.242,
+        "inlier_fraction": 0.969,
+        "visible_samples": 3302,
+        "inlier_samples": 3198,
+        "pose_sigma_mm": 0.011,
+        "iterations": 8,
+        "converged": true,
+        "focal_refined": false,
+        "initial_rms_px": 2.268,
+        "true_shift_mm": 0.0157
+      },
+      "cam2": {
+        "grade": "good",
+        "edge_rms_px": 0.223,
+        "inlier_fraction": 0.965,
+        "visible_samples": 3302,
+        "inlier_samples": 3187,
+        "pose_sigma_mm": 0.01,
+        "iterations": 8,
+        "converged": true,
+        "focal_refined": false,
+        "initial_rms_px": 2.128,
+        "true_shift_mm": 0.0277
+      },
+      "cam3": {
+        "grade": "good",
+        "edge_rms_px": 0.24,
+        "inlier_fraction": 0.962,
+        "visible_samples": 3302,
+        "inlier_samples": 3178,
+        "pose_sigma_mm": 0.012,
+        "iterations": 8,
+        "converged": true,
+        "focal_refined": false,
+        "initial_rms_px": 2.457,
+        "true_shift_mm": 0.041
       }
     },
     "bright-mixed": {
@@ -1946,7 +1949,7 @@
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.349,
+        "initial_rms_px": 2.384,
         "true_shift_mm": 0.0178
       },
       "cam2": {
@@ -1959,7 +1962,7 @@
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.173,
+        "initial_rms_px": 2.201,
         "true_shift_mm": 0.0335
       },
       "cam3": {
@@ -1972,49 +1975,8 @@
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.449,
+        "initial_rms_px": 2.437,
         "true_shift_mm": 0.049
-      }
-    },
-    "led_ring-cluster": {
-      "cam1": {
-        "grade": "good",
-        "edge_rms_px": 0.231,
-        "inlier_fraction": 0.969,
-        "visible_samples": 3302,
-        "inlier_samples": 3198,
-        "pose_sigma_mm": 0.01,
-        "iterations": 8,
-        "converged": true,
-        "focal_refined": false,
-        "initial_rms_px": 2.342,
-        "true_shift_mm": 0.0176
-      },
-      "cam2": {
-        "grade": "good",
-        "edge_rms_px": 0.224,
-        "inlier_fraction": 0.965,
-        "visible_samples": 3302,
-        "inlier_samples": 3188,
-        "pose_sigma_mm": 0.01,
-        "iterations": 8,
-        "converged": true,
-        "focal_refined": false,
-        "initial_rms_px": 2.099,
-        "true_shift_mm": 0.0262
-      },
-      "cam3": {
-        "grade": "good",
-        "edge_rms_px": 0.241,
-        "inlier_fraction": 0.963,
-        "visible_samples": 3302,
-        "inlier_samples": 3179,
-        "pose_sigma_mm": 0.012,
-        "iterations": 8,
-        "converged": true,
-        "focal_refined": false,
-        "initial_rms_px": 2.449,
-        "true_shift_mm": 0.0459
       }
     },
     "side_light-uniform": {
@@ -2028,7 +1990,7 @@
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.34,
+        "initial_rms_px": 2.359,
         "true_shift_mm": 0.0173
       },
       "cam2": {
@@ -2041,7 +2003,7 @@
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.157,
+        "initial_rms_px": 2.086,
         "true_shift_mm": 0.0288
       },
       "cam3": {
@@ -2054,49 +2016,49 @@
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.456,
+        "initial_rms_px": 2.46,
         "true_shift_mm": 0.0481
       }
     },
-    "neutral-handpass": {
+    "led_ring-cluster": {
       "cam1": {
         "grade": "good",
-        "edge_rms_px": 0.235,
+        "edge_rms_px": 0.231,
         "inlier_fraction": 0.969,
         "visible_samples": 3302,
-        "inlier_samples": 3200,
+        "inlier_samples": 3198,
         "pose_sigma_mm": 0.01,
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.302,
-        "true_shift_mm": 0.0199
+        "initial_rms_px": 2.325,
+        "true_shift_mm": 0.0176
       },
       "cam2": {
         "grade": "good",
-        "edge_rms_px": 0.225,
-        "inlier_fraction": 0.967,
+        "edge_rms_px": 0.224,
+        "inlier_fraction": 0.965,
         "visible_samples": 3302,
-        "inlier_samples": 3192,
+        "inlier_samples": 3188,
         "pose_sigma_mm": 0.01,
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.1,
-        "true_shift_mm": 0.0318
+        "initial_rms_px": 2.121,
+        "true_shift_mm": 0.0262
       },
       "cam3": {
         "grade": "good",
-        "edge_rms_px": 0.243,
-        "inlier_fraction": 0.962,
+        "edge_rms_px": 0.241,
+        "inlier_fraction": 0.963,
         "visible_samples": 3302,
-        "inlier_samples": 3177,
+        "inlier_samples": 3179,
         "pose_sigma_mm": 0.012,
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.426,
-        "true_shift_mm": 0.045
+        "initial_rms_px": 2.455,
+        "true_shift_mm": 0.0459
       }
     },
     "uneven-cluster": {
@@ -2110,7 +2072,7 @@
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.217,
+        "initial_rms_px": 2.226,
         "true_shift_mm": 0.0487
       },
       "cam2": {
@@ -2123,7 +2085,7 @@
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.098,
+        "initial_rms_px": 2.148,
         "true_shift_mm": 0.0537
       },
       "cam3": {
@@ -2136,7 +2098,7 @@
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.44,
+        "initial_rms_px": 2.443,
         "true_shift_mm": 0.0473
       }
     },
@@ -2151,7 +2113,7 @@
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.328,
+        "initial_rms_px": 2.343,
         "true_shift_mm": 0.0273
       },
       "cam2": {
@@ -2164,7 +2126,7 @@
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.109,
+        "initial_rms_px": 2.212,
         "true_shift_mm": 0.0195
       },
       "cam3": {
@@ -2177,10 +2139,51 @@
         "iterations": 8,
         "converged": true,
         "focal_refined": false,
-        "initial_rms_px": 2.52,
+        "initial_rms_px": 2.526,
         "true_shift_mm": 0.0595
+      }
+    },
+    "neutral-handpass": {
+      "cam1": {
+        "grade": "good",
+        "edge_rms_px": 0.235,
+        "inlier_fraction": 0.969,
+        "visible_samples": 3302,
+        "inlier_samples": 3200,
+        "pose_sigma_mm": 0.01,
+        "iterations": 8,
+        "converged": true,
+        "focal_refined": false,
+        "initial_rms_px": 2.366,
+        "true_shift_mm": 0.0199
+      },
+      "cam2": {
+        "grade": "good",
+        "edge_rms_px": 0.225,
+        "inlier_fraction": 0.967,
+        "visible_samples": 3302,
+        "inlier_samples": 3192,
+        "pose_sigma_mm": 0.01,
+        "iterations": 8,
+        "converged": true,
+        "focal_refined": false,
+        "initial_rms_px": 2.079,
+        "true_shift_mm": 0.0318
+      },
+      "cam3": {
+        "grade": "good",
+        "edge_rms_px": 0.243,
+        "inlier_fraction": 0.962,
+        "visible_samples": 3302,
+        "inlier_samples": 3177,
+        "pose_sigma_mm": 0.012,
+        "iterations": 8,
+        "converged": true,
+        "focal_refined": false,
+        "initial_rms_px": 2.45,
+        "true_shift_mm": 0.045
       }
     }
   },
-  "wall_seconds": 325.0
+  "wall_seconds": 690.8
 }

@@ -380,6 +380,11 @@ def fuse(
             break
         if results and not _independent_second_dart(best, results):
             break
+        if results and negative_evidence(best, cameras, support, occluders) > 0:
+            # An additional dart in the same scene must not be contradicted by a camera
+            # with a clear view of it: two cameras' shadows or fragments can intersect on
+            # the board and look like a dart the third camera plainly does not see.
+            break
         results.append(best)
         for c, i in best_key:
             used[c].add(i)
