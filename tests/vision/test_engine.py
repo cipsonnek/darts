@@ -100,3 +100,19 @@ def test_permanent_scene_change_is_adopted_not_obstruction_forever() -> None:
     assert not [e for e in events if e.type == EventType.DART]
     assert eng.state == EngineState.IDLE
     assert res is not None
+
+
+def test_pulling_a_dart_that_was_in_the_empty_reference_is_not_a_new_dart() -> None:
+    # A dart is in the board when it is marked empty (start-up / reset). Pulling it out
+    # together with the next darts must not report it as a new dart.
+    r = _runner(9)
+    steps = [ScenarioStep(1.0, "throw", {"target": (0.0, 130.0)}),
+             ScenarioStep(2.6, "reset_board", {}),
+             ScenarioStep(3.2, "throw", {"target": (-60.0, 70.0)}),
+             ScenarioStep(4.6, "throw", {"target": (80.0, -40.0)}),
+             ScenarioStep(6.0, "takeout", {})]
+    res = r.run(Scenario("stale_empty", steps, 9.5))
+    darts = [e for e in res.events if e.type == EventType.DART]
+    takeout_at = min(e.timestamp for e in res.events if e.type == EventType.DARTS_REMOVED)
+    assert not [e for e in darts if e.timestamp >= takeout_at], [e.data["score"]["label"] for e in darts]
+    assert len(r.engine.board_state) == 0

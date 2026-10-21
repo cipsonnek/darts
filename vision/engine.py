@@ -374,8 +374,14 @@ class VisionEngine:
                 "dart_ids": [d.dart_id for d in gone], "board_clear": clear,
                 "remaining": [d.dart_id for d in self.board_state.darts]}))
 
-        # 3. New darts.
-        new_events = self._detect_new(frames, cams, changes, ts)
+        # 3. New darts. Not when this very scene is the takeout that emptied the board: the
+        # hand was just in front of it, and a dart can only look "new" because it was in the
+        # board when the empty reference was taken (start-up, reset) and has now been pulled.
+        if removed and len(self.board_state) == 0:
+            new_events = []
+            log.info("takeout emptied the board: new-dart detection skipped for this scene")
+        else:
+            new_events = self._detect_new(frames, cams, changes, ts)
         events.extend(new_events)
 
         # 4. Nothing recognised but the scene changed.

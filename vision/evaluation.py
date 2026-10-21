@@ -190,6 +190,9 @@ class SimulationRunner:
             self.world.pass_hand(at=step.at, duration=0.5)
         elif step.action == "lighting":
             self.world.set_lighting(step.params["preset"], at=step.at, transition_s=0.4)
+        elif step.action == "reset_board":
+            # The user presses "board is empty" (possibly while a dart is still in it).
+            self.engine.reset_board(mark_empty=True)
 
 
 def _model_shift(true_cam: CameraModel, est: CameraModel) -> float:

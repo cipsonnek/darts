@@ -6,6 +6,9 @@ import { ALERT_TICKET_TITLE, n, pctChange, TICKET_PRIORITY, zl, type Dashboard a
 import { AlertLine, Kpi } from "../ui";
 import { VenueMap } from "../VenueMap";
 
+/** Revenue axis: "850", "1.5k" (below 1000 a "k" label rounds everything to 0k/0.1k). */
+const moneyTick = (v: number) => (Math.abs(v) >= 1000 ? `${Math.round(v / 100) / 10}k` : String(Math.round(v)));
+
 export function DailyChart({ data, height = 260 }: { data: { date: string; games: number; revenue: number }[]; height?: number }) {
   return (
     <div style={{ height }}>
@@ -14,7 +17,7 @@ export function DailyChart({ data, height = 260 }: { data: { date: string; games
           <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="date" stroke="var(--muted)" tickFormatter={(d: string) => d.slice(8, 10) + "." + d.slice(5, 7)} minTickGap={24} fontSize={12} />
           <YAxis yAxisId="g" stroke="var(--muted)" fontSize={12} allowDecimals={false} />
-          <YAxis yAxisId="r" orientation="right" stroke="var(--muted)" fontSize={12} tickFormatter={(v: number) => `${Math.round(v / 100) / 10}k`} />
+          <YAxis yAxisId="r" orientation="right" stroke="var(--muted)" fontSize={12} tickFormatter={moneyTick} />
           <Tooltip contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12 }}
             labelFormatter={(d) => new Date(String(d)).toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" })}
             formatter={(v, name) => (name === "revenue" ? [zl(Number(v)), "Przychód"] : [n(Number(v)), "Gry"])} />

@@ -26,7 +26,10 @@ def health(request_settings: AppSettings = Depends(deps.settings), vision=Depend
     calibrated = len(vision.engine.calibrated_cameras) if vision.engine else 0
     db_ok = games.db.healthy()
     status = "ok"
-    if not db_ok or connected == 0:
+    if request_settings.mode == "central":
+        # The fleet server has no cameras by design: only the database matters.
+        status = "ok" if db_ok else "down"
+    elif not db_ok or connected == 0:
         status = "down" if connected == 0 and not db_ok else "degraded"
     elif connected < len(cams) or calibrated < min(2, len(cams)):
         status = "degraded"
