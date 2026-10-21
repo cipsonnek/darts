@@ -72,6 +72,30 @@ class CalibrationStore:
             data["pose"] = None
             self._save(data)
 
+    def swap(self, a: str, b: str) -> None:
+        """Exchange the lens and pose calibration of two camera slots (their physical
+        cameras were swapped between slots, not moved)."""
+        with self._lock:
+            da, db = self.load(a), self.load(b)
+            for key in ("intrinsics", "pose"):
+                da[key], db[key] = db.get(key), da.get(key)
+            for d, cid in ((da, a), (db, b)):
+                d["camera_id"] = cid
+                if d.get("pose"):
+                    d["pose"]["camera_id"] = cid
+                if d.get("intrinsics") and "camera_id" in d["intrinsics"]:
+                    d["intrinsics"]["camera_id"] = cid
+            self._save(da)
+            self._save(db)
+
+    def mark_stale(self, camera_id: str) -> None:
+        """A different physical camera now feeds this slot: its pose no longer applies."""
+        with self._lock:
+            data = self.load(camera_id)
+            if data.get("pose") is not None:
+                data["pose"]["stale"] = True
+                self._save(data)
+
     def camera_model(self, camera_id: str) -> CameraModel | None:
         data = self.load(camera_id)
         pose = data.get("pose")

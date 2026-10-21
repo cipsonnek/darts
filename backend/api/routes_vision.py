@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from backend.api import deps
 from backend.api.schemas import BoardCalibrationIn, CameraPatch, ControlsIn, ResolveIn
@@ -56,6 +57,29 @@ def patch_camera(camera_id: str, body: CameraPatch, vision=Depends(deps.vision))
     try:
         return vision.update_camera(camera_id, body.model_dump(exclude_none=True))
     except Exception as exc:  # noqa: BLE001
+        raise HTTPException(422, str(exc)) from exc
+
+
+@router.get("/cameras/devices/{index}/preview.jpg", dependencies=[Depends(deps.require_admin)])
+def device_preview(index: int = Path(ge=0, le=31), width: int = Query(480, ge=64, le=1280),
+                   vision=Depends(deps.vision)) -> Response:
+    data = vision.device_preview(index, width)
+    if data is None:
+        raise HTTPException(503, "no image from this device")
+    return Response(data, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+
+class DeviceIn(BaseModel):
+    device: int = Field(ge=0, le=31)
+
+
+@router.post("/cameras/{camera_id}/device", dependencies=[Depends(deps.require_admin)])
+def assign_device(camera_id: str, body: DeviceIn, vision=Depends(deps.vision)) -> dict:
+    """Feed a camera slot from another USB device (swaps with the slot using it, if any)."""
+    _cam(vision, camera_id)
+    try:
+        return vision.assign_device(camera_id, body.device)
+    except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
 
 

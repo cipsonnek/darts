@@ -9,6 +9,7 @@ import time
 from typing import Any
 
 import cv2
+import numpy as np
 
 from vision.cameras.base import Camera, CameraError, Frame
 from vision.config import CameraConfig
@@ -132,12 +133,31 @@ class OpenCVCamera(Camera):
         }
 
 
-def probe_devices(max_index: int = 8, api: str = "auto") -> list[dict[str, Any]]:
+def grab_device_frame(index: int, api: str = "auto", warmup: int = 4) -> np.ndarray | None:
+    """One frame from a capture device that is not in use (opens and releases it)."""
+    cv_api = _APIS[api] if api != "auto" else default_api()
+    cap = cv2.VideoCapture(index, cv_api)
+    try:
+        if not cap.isOpened():
+            return None
+        img = None
+        for _ in range(warmup + 1):  # the first frames of a webcam are often dark
+            ok, frame = cap.read()
+            if ok and frame is not None:
+                img = frame
+        return img
+    finally:
+        cap.release()
+
+
+def probe_devices(max_index: int = 8, api: str = "auto", skip: set[int] | None = None) -> list[dict[str, Any]]:
     """Enumerate capture devices by index and report whether they deliver frames, plus a
     simple "looks real" heuristic (virtual cameras often deliver flat/static images)."""
     results = []
     cv_api = _APIS[api] if api != "auto" else default_api()
     for idx in range(max_index):
+        if skip and idx in skip:
+            continue  # in use by a running camera: opening it again can disturb that stream
         cap = cv2.VideoCapture(idx, cv_api)
         if not cap.isOpened():
             cap.release()

@@ -107,17 +107,24 @@ class CameraManager:
 
     def reconfigure(self, config: CameraConfig) -> None:
         """Replace a camera's configuration and restart its worker."""
+        self.reconfigure_many([config])
+
+    def reconfigure_many(self, configs: list[CameraConfig]) -> None:
+        """Restart several cameras: all are stopped before any is started, so cameras that
+        swap devices never try to open a device the other one still holds."""
         with self._lock:
-            old = self._workers.pop(config.id, None)
-            if old is not None:
-                old.stop()
-            self._configs[config.id] = config
-            if config.enabled:
-                worker = CaptureWorker(create_camera(config, self._world))
-                for fn in self._listeners:
-                    worker.add_listener(fn)
-                self._workers[config.id] = worker
-                worker.start()
+            for config in configs:
+                old = self._workers.pop(config.id, None)
+                if old is not None:
+                    old.stop()
+            for config in configs:
+                self._configs[config.id] = config
+                if config.enabled:
+                    worker = CaptureWorker(create_camera(config, self._world))
+                    for fn in self._listeners:
+                        worker.add_listener(fn)
+                    self._workers[config.id] = worker
+                    worker.start()
 
     def apply_controls(self, camera_id: str, **controls) -> dict:
         worker = self.worker(camera_id)

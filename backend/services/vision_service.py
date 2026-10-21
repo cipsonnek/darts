@@ -25,7 +25,7 @@ from vision.calibration.intrinsics import IntrinsicsCalibrator, IntrinsicsResult
 from vision.calibration.store import CalibrationStore
 from vision.cameras.base import Frame
 from vision.cameras.manager import CameraManager
-from vision.cameras.opencv_camera import probe_devices
+from vision.cameras.opencv_camera import grab_device_frame, probe_devices
 from vision.config import CameraConfig
 from vision.diagnostics.overlays import LAYERS, draw_board, draw_debug, topdown_view, undistort_image
 from vision.engine import EngineState, VisionEngine
@@ -38,6 +38,21 @@ from vision.recording.recorder import SessionRecorder
 log = logging.getLogger("backend.vision")
 
 EventCallback = Callable[[VisionEvent], None]
+
+
+def _note(name: str) -> str | None:
+    """The trailing "(...)" of a camera name, e.g. "by the 20" in "Camera 1 (by the 20)"."""
+    name = name.strip()
+    if name.endswith(")") and "(" in name:
+        return name[name.rindex("(") + 1:-1]
+    return None
+
+
+def _with_note(name: str, note: str | None) -> str:
+    base = name.strip()
+    if _note(base) is not None:
+        base = base[:base.rindex("(")].rstrip()
+    return f"{base} ({note})" if note else base
 
 
 class VisionService:
@@ -62,6 +77,8 @@ class VisionService:
         # Persists calibration history (set by the application: database profiles).
         self.profile_sink: Callable[[str, str, dict], None] | None = None
         self.simulator = settings.mode == "simulator"
+        self._device_lock = threading.Lock()  # one device open/probe at a time
+        self._device_previews: dict[int, tuple[float, np.ndarray | None]] = {}
 
     # ------------------------------------------------------------------ lifecycle
     def start(self) -> None:
@@ -202,10 +219,97 @@ class VisionService:
         self.cfg.cameras[idx] = new
         save_runtime_overrides(self.settings, {"vision": {"cameras": [c.model_dump() for c in self.cfg.cameras]}})
 
+    def _devices_in_use(self) -> dict[int, str]:
+        return {int(c.source.device): c.id for c in self.cfg.cameras
+                if c.enabled and c.source.type == "opencv" and c.source.device is not None}
+
     def probe(self) -> list[dict]:
+        """Capture devices with the camera slot that uses each one. Devices in use are not
+        reopened (that can disturb their stream); their live health is reported instead."""
         if self.simulator:
             return []
-        return probe_devices(8)
+        used = self._devices_in_use()
+        with self._device_lock:
+            free = probe_devices(8, skip=set(used))
+        out = []
+        health = {h["camera_id"]: h for h in self.manager.health()} if self.manager else {}
+        for idx, cid in used.items():
+            h = health.get(cid)
+            out.append({"index": idx, "opened": bool(h and h.get("connected")), "in_use_by": cid,
+                        "width": h.get("width") if h else None, "height": h.get("height") if h else None,
+                        "frames": h.get("frames_total", 0) if h else 0, "backend": (h or {}).get("controls", {}).get("backend"),
+                        "likely_virtual_or_blank": False})
+        out += [{**p, "in_use_by": None} for p in free]
+        return sorted(out, key=lambda p: p["index"])
+
+    def device_preview(self, index: int, width: int = 480) -> bytes | None:
+        """A JPEG from a capture device: the live frame of the slot using it, otherwise one
+        grabbed by briefly opening the free device (cached for a few seconds)."""
+        if self.simulator:
+            return None
+        cid = self._devices_in_use().get(index)
+        if cid is not None:
+            return self.render_view(cid, width, set(), "raw", 80)
+        now = time.time()
+        cached = self._device_previews.get(index)
+        if cached and now - cached[0] < 3.0:
+            img = cached[1]
+        else:
+            with self._device_lock:
+                img = grab_device_frame(index)
+            self._device_previews[index] = (now, img)
+        if img is None:
+            return None
+        h, w = img.shape[:2]
+        if w > width:
+            img = cv2.resize(img, (width, int(round(h * width / w))), interpolation=cv2.INTER_AREA)
+        ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        return buf.tobytes() if ok else None
+
+    def assign_device(self, camera_id: str, device: int) -> dict:
+        """Feed a camera slot from another capture device. If another slot uses that device,
+        the two slots swap devices *and* calibrations (the physical cameras did not move);
+        otherwise the slot's calibration is marked stale (a different camera now feeds it)."""
+        cur = self.camera(camera_id)
+        if cur.source.type != "opencv":
+            raise ValueError("only USB cameras can be assigned a device number")
+        old = cur.source.device
+        if old == device:
+            return {"camera_id": camera_id, "device": device, "swapped_with": None, "recalibrate": []}
+        other = next((c for c in self.cfg.cameras if c.id != camera_id and c.source.type == "opencv"
+                      and c.source.device == device), None)
+        changes = [(camera_id, device)] + ([(other.id, old)] if other is not None else [])
+        swapped = {camera_id: other, other.id: cur} if other is not None else {}
+        for cid, dev in changes:
+            c = self.camera(cid)
+            patch: dict[str, Any] = {"source": {**c.source.model_dump(), "device": dev}}
+            if cid in swapped:
+                # The mount position describes the physical camera, so it moves with it
+                # (as does a "(by the 20)" style note in the name).
+                src = swapped[cid]
+                patch["mount"] = src.mount.model_dump()
+                patch["name"] = _with_note(c.name, _note(src.name))
+            idx = [x.id for x in self.cfg.cameras].index(cid)
+            self.cfg.cameras[idx] = CameraConfig.model_validate({**c.model_dump(), **patch})
+        recalibrate: list[str] = []
+        if other is not None:
+            self.store.swap(camera_id, other.id)
+        else:
+            self.store.mark_stale(camera_id)
+            recalibrate.append(camera_id)
+        for cid, _ in changes:
+            self._pending_pose.pop(cid, None)
+            if self.engine is not None:
+                self.engine.set_camera_model(cid, self.store.camera_model(cid))
+        assert self.manager is not None
+        self.manager.reconfigure_many([self.camera(cid) for cid, _ in changes])
+        self._device_previews.clear()
+        save_runtime_overrides(self.settings, {"vision": {"cameras": [c.model_dump() for c in self.cfg.cameras]}})
+        log.info("camera device assigned", extra={"camera": camera_id, "device": device,
+                                                  "swapped_with": other.id if other else None})
+        self.hub.publish("system", "cameras_changed", {"camera_id": camera_id, "device": device})
+        return {"camera_id": camera_id, "device": device, "swapped_with": other.id if other else None,
+                "recalibrate": recalibrate}
 
     # ------------------------------------------------------------------ images
     def render_view(self, camera_id: str, width: int | None = None, layers: set[str] | None = None,

@@ -66,7 +66,13 @@ class AppSettings(BaseModel):
 
     @property
     def runtime_file(self) -> Path:
-        return self.path(self.data_dir) / "runtime.yaml"
+        return self.path(self.data_dir) / runtime_file_name(self.mode)
+
+
+def runtime_file_name(mode: str) -> str:
+    """UI overrides are kept per mode: the real cameras saved by a live board must never
+    replace the simulator's synthetic cameras (or reach a central server)."""
+    return "runtime.yaml" if mode == "live" else f"runtime-{mode}.yaml"
 
 
 def config_layers() -> list[Path]:
@@ -80,11 +86,13 @@ def config_layers() -> list[Path]:
 
 def load_settings(extra: dict[str, Any] | None = None) -> AppSettings:
     data = load_yaml_layers(config_layers())
-    data_dir = data.get("data_dir", "data")
-    runtime = (ROOT / data_dir / "runtime.yaml")
+    env = os.environ
+    data_dir = (extra or {}).get("data_dir") or data.get("data_dir", "data")
+    mode = (extra or {}).get("mode") or env.get("DARTSENSE_MODE") or data.get("mode", "live")
+    runtime = Path(data_dir) if Path(data_dir).is_absolute() else ROOT / data_dir
+    runtime = runtime / runtime_file_name(mode)
     if runtime.exists():
         data = deep_merge(data, yaml.safe_load(runtime.read_text(encoding="utf-8")) or {})
-    env = os.environ
     if env.get("DARTSENSE_DATABASE_URL"):
         data = deep_merge(data, {"database": {"url": env["DARTSENSE_DATABASE_URL"]}})
     if env.get("DARTSENSE_HOST"):

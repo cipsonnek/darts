@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CameraPicker } from "@/components/camera/CameraPicker";
 import { CameraView } from "@/components/camera/CameraView";
 import { Badge, Button, Card, ErrorNote, Field, inputCls, Modal, PageHeader, Tabs, Toggle } from "@/components/ui";
 import { useAction, useApi } from "@/hooks/useApi";
@@ -15,13 +16,13 @@ export default function Cameras() {
   const [view, setView] = useState<"raw" | "undistorted" | "topdown">("raw");
   const [layers, setLayers] = useState<string[]>(["board", "darts"]);
   const [edit, setEdit] = useState<CameraInfo | null>(null);
-  const [probe, setProbe] = useState<any[] | null>(null);
-  const doProbe = useAction(async () => setProbe(await api.get<any[]>("/api/cameras/probe")));
+  const [picking, setPicking] = useState(false);
+  const realUsb = cams?.some((c) => !c.synthetic && c.config.source.type === "opencv");
 
   return (
     <div>
       <PageHeader title="Kamery" subtitle="Podgląd jest kodowany na serwerze w zmniejszonym rozmiarze; pełne klatki nie opuszczają silnika wizji."
-        actions={<Button onClick={() => doProbe.run()} disabled={doProbe.busy}>Wykryj urządzenia</Button>} />
+        actions={realUsb && <Button variant="primary" onClick={() => setPicking(true)}>Wybierz kamery</Button>} />
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Tabs value={view} onChange={setView} items={[{ id: "raw", label: "Surowy" }, { id: "undistorted", label: "Bez zniekształceń" }, { id: "topdown", label: "Z góry" }]} />
         <div className="flex flex-wrap gap-1">
@@ -33,7 +34,7 @@ export default function Cameras() {
           ))}
         </div>
       </div>
-      <ErrorNote error={error ?? doProbe.error} />
+      <ErrorNote error={error} />
       <div className="grid gap-4 xl:grid-cols-3">
         {cams?.map((c) => {
           const h = live.find((x) => x.camera_id === c.id) ?? c.health;
@@ -51,17 +52,7 @@ export default function Cameras() {
         })}
       </div>
       {edit && <CameraEditor cam={edit} onClose={() => { setEdit(null); reload(); }} />}
-      <Modal open={!!probe} onClose={() => setProbe(null)} title="Urządzenia przechwytywania">
-        {probe && probe.length === 0 && <div className="text-sm text-[var(--muted)]">Nie znaleziono urządzeń (lub działa symulator).</div>}
-        <div className="flex flex-col gap-2 text-sm">
-          {probe?.map((p) => (
-            <div key={p.index} className="rounded-lg border border-[var(--border)] p-2">
-              <b>Urządzenie {p.index}</b> — {p.width}×{p.height} · {p.backend} · klatek: {p.frames}
-              {p.likely_virtual_or_blank && <Badge tone="warn" className="ml-2">puste/wirtualne?</Badge>}
-            </div>
-          ))}
-        </div>
-      </Modal>
+      {picking && cams && <CameraPicker cams={cams} onClose={() => { setPicking(false); reload(); }} />}
     </div>
   );
 }
