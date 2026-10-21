@@ -140,6 +140,8 @@ def detect_board(camera_id: str, body: BoardCalibrationIn, vision=Depends(deps.v
     _cam(vision, camera_id)
     try:
         return vision.detect_board(camera_id, body.method, body.points, body.hint, body.azimuth_deg)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(409, str(exc)) from exc
 

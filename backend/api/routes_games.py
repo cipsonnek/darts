@@ -57,7 +57,13 @@ def list_games(status: str | None = Query(None, pattern="^(created|running|pause
 
 @router.post("/games", status_code=201)
 def create_game(body: GameIn, games=Depends(deps.games)) -> dict:
-    return _wrap(games.create_game, body.mode, body.settings, body.player_ids, body.start)
+    try:
+        return _wrap(games.create_game, body.mode, body.settings, body.player_ids, body.start)
+    except HTTPException as exc:
+        # Unknown mode or invalid rules are bad input, not a conflict with the current state.
+        if exc.status_code == 409:
+            raise HTTPException(422, exc.detail) from exc
+        raise
 
 
 @router.get("/games/active")

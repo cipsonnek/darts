@@ -11,3 +11,4 @@ configs/local.yaml
 *.log
 .env
 *.egg-info/
+recordings-sim/

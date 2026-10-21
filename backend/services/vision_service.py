@@ -406,6 +406,13 @@ class VisionService:
         cam_cfg = self.camera(camera_id)
         prior = azimuth if azimuth is not None else cam_cfg.mount.azimuth_deg
         pts = {k: (float(v[0]), float(v[1])) for k, v in (points or {}).items()} if method == "manual" else None
+        if method == "manual":
+            unknown = set(pts) - set(landmarks(self.board))
+            if unknown:
+                raise ValueError(f"unknown landmark points: {sorted(unknown)}")
+            if len(pts) < 4:
+                # Without this check the request silently fell back to automatic detection.
+                raise ValueError("manual calibration needs at least 4 clicked points")
         res = calibrate_board(img, self.cfg, camera_id, intrinsics=intr, azimuth_prior_deg=prior,
                               hint_px=tuple(hint) if hint else None, manual_points=pts)
         if res.ok:

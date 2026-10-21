@@ -139,6 +139,9 @@ def create_app(settings: AppSettings | None = None, start_vision: bool = True) -
 
         @app.get("/{path:path}", include_in_schema=False)
         async def spa(path: str):  # noqa: ANN202
+            if path == "api" or path.startswith(("api/", "ws/")):
+                # An unknown API route is an error, not a page of the UI.
+                return JSONResponse({"detail": "Not Found"}, status_code=404)
             target = (dist / path).resolve()
             if path and target.is_file() and dist.resolve() in target.parents:
                 return FileResponse(target)
