@@ -1,108 +1,36 @@
 import clsx from "clsx";
-import { ArrowDown, ArrowUp, Check, Minus, Plus, UserPlus, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, Minus, Plus, Settings2, Target, UserPlus, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
-import { Badge, Button, Card, Empty, ErrorNote, inputCls, Modal, PageHeader, Toggle } from "@/components/ui";
+import { Badge, Button, ErrorNote, inputCls, Toggle, useTilt } from "@/components/ui";
 import { useAction, useApi } from "@/hooks/useApi";
 import { api } from "@/lib/api";
-import { dartLabel, GAME_STATUS, MODE_DESCRIPTIONS, modeName, plural, settingLabel, SETTING_HINTS, settingValue, tr } from "@/lib/pl";
-import type { GameMode, GameState, GameSummary, Player, SettingSchema, Turn } from "@/lib/types";
+import { MODE_DESCRIPTIONS, modeName, plural, settingLabel, SETTING_HINTS, settingValue } from "@/lib/pl";
+import type { GameMode, GameState, GameSummary, Player, SettingSchema } from "@/lib/types";
 import { useLive } from "@/store/live";
 import { gameSummary } from "./Play";
 
-const COLORS = ["#e8324a", "#2ecc71", "#3b82f6", "#f5b942", "#a855f7", "#14b8a6", "#f97316", "#ec4899"];
+const COLORS = ["#ff5a1f", "#34d399", "#3b82f6", "#fbbf24", "#a855f7", "#14b8a6", "#f43f5e", "#ec4899"];
+const MAX_PLAYERS = 8;
 
-export default function Games() {
-  const { data: games, reload, error } = useApi<GameSummary[]>("/api/games?limit=100");
-  const [detail, setDetail] = useState<string | null>(null);
-  const setGame = useLive((s) => s.setGame);
-  const nav = useNavigate();
-
-  const act = useAction(async (id: string, action: string) => {
-    const g = await api.post<GameState>(`/api/games/${id}/${action}`);
-    if (action === "resume" || action === "start") {
-      setGame(g);
-      nav("/");
-    }
-    reload();
-  });
-
-  const unfinished = games?.filter((g) => g.status === "running" || g.status === "paused" || g.status === "created") ?? [];
-  const done = games?.filter((g) => !unfinished.includes(g)) ?? [];
-
-  return (
-    <div>
-      <PageHeader title="Nowa gra" subtitle="Wybierz tryb, ustaw zasady i dodaj graczy." />
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <NewGame onCreated={(g) => { setGame(g); nav("/"); }} />
-        <div className="flex flex-col gap-4">
-          {unfinished.length > 0 && (
-            <Card title="Niedokończone gry">
-              <div className="flex flex-col divide-y divide-[var(--border)]">
-                {unfinished.map((g) => (
-                  <GameRow key={g.id} g={g} onDetail={() => setDetail(g.id)}>
-                    <Button size="sm" variant="primary" onClick={() => act.run(g.id, "resume")}>Wznów</Button>
-                    <Button size="sm" variant="ghost" onClick={() => act.run(g.id, "abandon")}>Przerwij</Button>
-                  </GameRow>
-                ))}
-              </div>
-            </Card>
-          )}
-          <Card title="Historia gier">
-            <ErrorNote error={error ?? act.error} />
-            {!done.length ? <Empty title="Brak rozegranych gier" /> : (
-              <div className="flex max-h-[60vh] flex-col divide-y divide-[var(--border)] overflow-y-auto">
-                {done.map((g) => <GameRow key={g.id} g={g} onDetail={() => setDetail(g.id)} />)}
-              </div>
-            )}
-          </Card>
-        </div>
-      </div>
-      {detail && <GameDetail id={detail} onClose={() => setDetail(null)} />}
-    </div>
-  );
-}
-
-function GameRow({ g, onDetail, children }: { g: GameSummary; onDetail: () => void; children?: React.ReactNode }) {
-  return (
-    <div className="flex flex-wrap items-center gap-2 py-2.5">
-      <button className="min-w-0 flex-1 text-left" onClick={onDetail}>
-        <div className="font-semibold">
-          {modeName(g.mode)} <span className="font-normal text-[var(--muted)]">{gameSummary(g)}</span>
-        </div>
-        <div className="truncate text-sm text-[var(--muted)]">{g.players.map((p) => p.name).join(" vs ")}</div>
-        <div className="text-xs text-[var(--muted)]">
-          {g.created_at && new Date(g.created_at).toLocaleString("pl-PL", { dateStyle: "medium", timeStyle: "short" })}
-          {g.winner && <> · wygrał(a) <b className="text-[var(--good)]">{g.winner.name}</b></>}
-        </div>
-      </button>
-      <Badge tone={g.status === "running" ? "good" : g.status === "paused" ? "warn" : "info"}>{tr(GAME_STATUS, g.status)}</Badge>
-      {children && <div className="flex gap-1">{children}</div>}
-    </div>
-  );
-}
-
-function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
-  return (
-    <section className="flex flex-col gap-3">
-      <h2 className="flex items-center gap-2.5 font-display text-lg font-bold">
-        <span className="grid h-7 w-7 place-items-center rounded-full bg-[var(--accent)] text-sm text-white">{n}</span>
-        {title}
-      </h2>
-      {children}
-    </section>
-  );
-}
+/** Short taglines on the mode cards. */
+const MODE_TAG: Record<string, string> = {
+  x01: "Najpopularniejsza",
+  cricket: "Taktyczna",
+  atc: "Dla początkujących",
+  shanghai: "Na szczęście",
+  bobs27: "Trening",
+};
 
 function Segmented<T extends string | number>({ value, options, onChange, format }: {
   value: T; options: T[]; onChange: (v: T) => void; format?: (v: T) => string;
 }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex flex-wrap gap-2">
       {options.map((o) => (
         <button key={String(o)} type="button" onClick={() => onChange(o)}
-          className={clsx("min-w-16 rounded-xl border px-4 py-2 font-semibold transition",
-            o === value ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-[var(--surface-2)] hover:border-[var(--muted)]")}>
+          className={clsx("min-w-16 rounded-2xl border-2 px-4 py-2.5 text-lg font-bold transition",
+            o === value ? "border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_8px_20px_-10px_var(--accent)]" : "border-[var(--border)] bg-[var(--surface-2)] hover:border-[var(--muted)]")}>
           {format ? format(o) : String(o)}
         </button>
       ))}
@@ -112,10 +40,10 @@ function Segmented<T extends string | number>({ value, options, onChange, format
 
 function Stepper({ value, min = 0, max = 99, onChange }: { value: number; min?: number; max?: number; onChange: (v: number) => void }) {
   return (
-    <div className="inline-flex items-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)]">
-      <button type="button" className="px-3 py-2 hover:bg-[var(--border)] disabled:opacity-40" disabled={value <= min} onClick={() => onChange(Math.max(min, value - 1))} aria-label="Mniej"><Minus size={16} /></button>
-      <span className="min-w-12 text-center font-score text-2xl font-bold">{value}</span>
-      <button type="button" className="px-3 py-2 hover:bg-[var(--border)] disabled:opacity-40" disabled={value >= max} onClick={() => onChange(Math.min(max, value + 1))} aria-label="Więcej"><Plus size={16} /></button>
+    <div className="inline-flex items-center overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]">
+      <button type="button" className="px-4 py-3 hover:bg-[var(--border)] disabled:opacity-40" disabled={value <= min} onClick={() => onChange(Math.max(min, value - 1))} aria-label="Mniej"><Minus size={18} /></button>
+      <span className="min-w-14 text-center font-score text-3xl font-bold">{value}</span>
+      <button type="button" className="px-4 py-3 hover:bg-[var(--border)] disabled:opacity-40" disabled={value >= max} onClick={() => onChange(Math.min(max, value + 1))} aria-label="Więcej"><Plus size={18} /></button>
     </div>
   );
 }
@@ -133,22 +61,67 @@ function SettingControl({ k, s, value, onChange }: { k: string; s: SettingSchema
     );
   } else control = <Stepper value={Number(value ?? 0)} min={s.min} max={s.max} onChange={onChange} />;
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="text-sm font-semibold text-[var(--muted)]">{settingLabel(k)}</div>
+    <div className="flex flex-col gap-2">
+      <div className="font-semibold">{settingLabel(k)}</div>
       {control}
-      {SETTING_HINTS[k] && <div className="text-xs text-[var(--muted)]">{SETTING_HINTS[k]}</div>}
+      {SETTING_HINTS[k] && <div className="text-sm text-[var(--muted)]">{SETTING_HINTS[k]}</div>}
     </div>
   );
 }
 
-function NewGame({ onCreated }: { onCreated: (g: GameState) => void }) {
+const STEPS = ["Gra", "Gracze", "Start"];
+
+function StepBar({ step, onPick }: { step: number; onPick: (i: number) => void }) {
+  return (
+    <ol className="flex items-center gap-2">
+      {STEPS.map((s, i) => (
+        <li key={s} className="flex flex-1 items-center gap-2">
+          <button type="button" disabled={i > step} onClick={() => onPick(i)}
+            className={clsx("flex items-center gap-2.5 rounded-2xl px-2 py-1 text-left transition disabled:cursor-default",
+              i === step ? "text-[var(--text)]" : i < step ? "text-[var(--good)] hover:bg-[var(--surface-2)]" : "text-[var(--muted)]")}>
+            <span className={clsx("grid h-10 w-10 shrink-0 place-items-center rounded-full font-score text-xl font-bold",
+              i === step ? "bg-[var(--accent)] text-white shadow-[0_0_0_5px_color-mix(in_oklab,var(--accent)_25%,transparent)]"
+                : i < step ? "bg-[var(--good)] text-black" : "bg-[var(--surface-2)]")}>
+              {i < step ? <Check size={20} /> : i + 1}
+            </span>
+            <span className="font-display text-xl font-bold tracking-wide uppercase">{s}</span>
+          </button>
+          {i < STEPS.length - 1 && <span className={clsx("h-1 flex-1 rounded-full", i < step ? "bg-[var(--good)]" : "bg-[var(--border)]")} />}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function ModeCard({ m, selected, onPick }: { m: GameMode; selected: boolean; onPick: () => void }) {
+  const tilt = useTilt<HTMLButtonElement>(9);
+  return (
+    <button onClick={onPick} {...tilt}
+      className={clsx("glass tilt relative flex min-h-44 flex-col rounded-3xl p-5 text-left",
+        selected ? "border-[var(--accent)] bg-[color-mix(in_oklab,var(--accent)_14%,var(--surface))]" : "hover:border-[var(--muted)]")}>
+      {MODE_TAG[m.id] && <span className="pop-out mb-3 w-fit rounded-full bg-[var(--surface-2)] px-2.5 py-0.5 text-xs font-bold tracking-wider text-[var(--accent)] uppercase">{MODE_TAG[m.id]}</span>}
+      {selected && <span className="absolute top-4 right-4 grid h-8 w-8 place-items-center rounded-full bg-[var(--accent)] text-white"><Check size={18} /></span>}
+      <div className="pop-out font-score text-5xl leading-none font-extrabold">{modeName(m.id, m.name)}</div>
+      <div className="mt-3 text-[var(--muted)]">{MODE_DESCRIPTIONS[m.id] ?? m.description}</div>
+    </button>
+  );
+}
+
+/** New game in three big steps: pick a game, type the players' names, start. */
+export default function NewGame() {
   const [params] = useSearchParams();
+  const nav = useNavigate();
+  const setGame = useLive((s) => s.setGame);
   const { data: modes } = useApi<GameMode[]>("/api/game-modes");
-  const { data: players, reload: reloadPlayers } = useApi<Player[]>("/api/players");
-  const [modeId, setModeId] = useState(params.get("mode") ?? "x01");
+  const { data: players } = useApi<Player[]>("/api/players");
+  const { data: recent } = useApi<GameSummary[]>("/api/games?limit=20");
+  const preset = params.get("mode");
+  const [step, setStep] = useState(preset ? 1 : 0);
+  const [modeId, setModeId] = useState(preset ?? "x01");
   const [settings, setSettings] = useState<Record<string, any>>({});
-  const [selected, setSelected] = useState<string[]>([]);
-  const [newName, setNewName] = useState("");
+  const [names, setNames] = useState<string[]>(["", ""]);
+  const [showRules, setShowRules] = useState(false);
+  const firstInput = useRef<HTMLInputElement>(null);
   const mode = useMemo(() => modes?.find((m) => m.id === modeId), [modes, modeId]);
 
   useEffect(() => {
@@ -159,21 +132,50 @@ function NewGame({ onCreated }: { onCreated: (g: GameState) => void }) {
     setSettings(defaults);
   }, [mode, params]);
 
+  useEffect(() => {
+    if (step === 1) firstInput.current?.focus();
+  }, [step]);
+
+  const finalNames = names.map((n, i) => n.trim() || `Gracz ${i + 1}`);
+  const duplicate = finalNames.find((n, i) => finalNames.findIndex((x) => x.toLowerCase() === n.toLowerCase()) !== i);
+
   const create = useAction(async () => {
-    onCreated(await api.post<GameState>("/api/games", { mode: modeId, settings, player_ids: selected }));
-  });
-  const addPlayer = useAction(async () => {
-    const p = await api.post<Player>("/api/players", { name: newName.trim(), color: COLORS[(players?.length ?? 0) % COLORS.length] });
-    setNewName("");
-    setSelected((s) => [...s, p.id]);
-    reloadPlayers();
+    // Reuse players by name, create the new ones.
+    const known = new Map((players ?? []).map((p) => [p.name.toLowerCase(), p]));
+    const ids: string[] = [];
+    for (const [i, name] of finalNames.entries()) {
+      const p = known.get(name.toLowerCase())
+        ?? await api.post<Player>("/api/players", { name, color: COLORS[i % COLORS.length] });
+      ids.push(p.id);
+    }
+    const g = await api.post<GameState>("/api/games", { mode: modeId, settings, player_ids: ids });
+    setGame(g);
+    nav("/");
   });
 
-  function toggle(id: string) {
-    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  // Names from recent games, for one-tap entry.
+  const suggestions = useMemo(() => {
+    const seen = new Set(names.map((n) => n.trim().toLowerCase()));
+    const out: string[] = [];
+    for (const g of recent ?? []) for (const p of g.players) {
+      const k = p.name.toLowerCase();
+      if (!seen.has(k) && !/^gracz \d+$/i.test(p.name)) {
+        seen.add(k);
+        out.push(p.name);
+      }
+    }
+    return out.slice(0, 10);
+  }, [recent, names]);
+
+  function addName(v = "") {
+    setNames((ns) => {
+      const empty = ns.findIndex((n) => !n.trim());
+      if (v && empty >= 0) return ns.map((n, i) => (i === empty ? v : n));
+      return ns.length < MAX_PLAYERS ? [...ns, v] : ns;
+    });
   }
   function move(i: number, d: number) {
-    setSelected((s) => {
+    setNames((s) => {
       const a = [...s];
       const j = i + d;
       if (j < 0 || j >= a.length) return s;
@@ -181,124 +183,120 @@ function NewGame({ onCreated }: { onCreated: (g: GameState) => void }) {
       return a;
     });
   }
-  const active = players?.filter((p) => !p.archived) ?? [];
-  const byId = (id: string) => players?.find((p) => p.id === id);
 
   return (
-    <Card>
-      <div className="flex flex-col gap-7">
-        <Step n={1} title="Tryb gry">
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-5">
+    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="font-display text-4xl font-extrabold tracking-wide uppercase md:text-5xl">Nowa gra</h1>
+        <div className="w-full md:w-[560px]"><StepBar step={step} onPick={setStep} /></div>
+      </div>
+
+      {step === 0 && (
+        <section className="animate-rise flex flex-col gap-4">
+          <p className="text-lg text-[var(--muted)]">W co gramy? Dotknij gry.</p>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {modes?.map((m) => (
-              <button key={m.id} onClick={() => setModeId(m.id)}
-                className={clsx("relative flex flex-col rounded-2xl border-2 p-4 text-left transition",
-                  m.id === modeId ? "border-[var(--accent)] bg-[color-mix(in_oklab,var(--accent)_10%,transparent)]" : "border-[var(--border)] hover:border-[var(--muted)]")}>
-                {m.id === modeId && <Check size={18} className="absolute top-3 right-3 text-[var(--accent)]" />}
-                <div className="font-score text-3xl font-extrabold leading-none">{modeName(m.id, m.name)}</div>
-                <div className="mt-2 text-sm text-[var(--muted)]">{MODE_DESCRIPTIONS[m.id] ?? m.description}</div>
-              </button>
+              <ModeCard key={m.id} m={m} selected={m.id === modeId} onPick={() => { setModeId(m.id); setStep(1); }} />
             ))}
           </div>
-        </Step>
+        </section>
+      )}
 
-        {mode && Object.keys(mode.settings).length > 0 && (
-          <Step n={2} title="Zasady">
-            <div className="grid gap-5 sm:grid-cols-2">
-              {Object.entries(mode.settings).map(([k, s]) => (
-                <SettingControl key={k} k={k} s={s} value={settings[k]} onChange={(v) => setSettings({ ...settings, [k]: v })} />
+      {step === 1 && (
+        <section className="animate-rise grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="glass flex flex-col gap-4 rounded-3xl p-5">
+            <div>
+              <h2 className="font-display text-3xl font-bold tracking-wide uppercase">Kto gra?</h2>
+              <p className="text-[var(--muted)]">Wpisz imiona. Pierwszy na liście rzuca pierwszy. Puste pole = „Gracz 1”, „Gracz 2”…</p>
+            </div>
+            <ol className="flex flex-col gap-2.5">
+              {names.map((n, i) => (
+                <li key={i} className="flex items-center gap-2">
+                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl font-score text-2xl font-bold text-white" style={{ background: COLORS[i % COLORS.length] }}>{i + 1}</span>
+                  <input ref={i === 0 ? firstInput : undefined} className={clsx(inputCls, "h-12 min-w-0 flex-1 text-lg")} value={n} maxLength={64}
+                    placeholder={`Gracz ${i + 1}`} onChange={(e) => setNames((ns) => ns.map((x, j) => (j === i ? e.target.value : x)))}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (i === names.length - 1 && names.length < MAX_PLAYERS && n.trim()) addName(); else setStep(2); } }} />
+                  <Button size="sm" variant="ghost" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Wyżej"><ArrowUp size={18} /></Button>
+                  <Button size="sm" variant="ghost" onClick={() => move(i, 1)} disabled={i === names.length - 1} aria-label="Niżej"><ArrowDown size={18} /></Button>
+                  <Button size="sm" variant="ghost" onClick={() => setNames((ns) => ns.filter((_, j) => j !== i))} disabled={names.length === 1} aria-label="Usuń gracza"><X size={18} /></Button>
+                </li>
+              ))}
+            </ol>
+            {names.length < MAX_PLAYERS && (
+              <Button size="lg" className="w-fit" onClick={() => addName()}><UserPlus size={18} /> Dodaj gracza</Button>
+            )}
+            {duplicate && <div className="text-sm font-semibold text-[var(--warn)]">Dwóch graczy ma to samo imię („{duplicate}”) — zmień jedno z nich.</div>}
+          </div>
+          <div className="flex flex-col gap-4">
+            {suggestions.length > 0 && (
+              <div className="glass rounded-3xl p-5">
+                <div className="mb-3 font-display text-lg font-bold tracking-wide text-[var(--muted)] uppercase">Grali niedawno</div>
+                <div className="flex flex-wrap gap-2">
+                  {suggestions.map((s) => (
+                    <button key={s} onClick={() => addName(s)} className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-1.5 font-semibold transition hover:border-[var(--accent)]">
+                      + {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="glass rounded-3xl p-5">
+              <div className="font-display text-lg font-bold tracking-wide text-[var(--muted)] uppercase">Wybrana gra</div>
+              <div className="font-score text-4xl font-extrabold">{mode ? modeName(mode.id, mode.name) : "…"}</div>
+              <Button size="sm" variant="ghost" className="mt-1" onClick={() => setStep(0)}><ArrowLeft size={14} /> zmień</Button>
+            </div>
+          </div>
+          <div className="flex justify-between gap-3 lg:col-span-2">
+            <Button size="lg" onClick={() => setStep(0)}><ArrowLeft size={18} /> Wstecz</Button>
+            <Button size="lg" variant="primary" disabled={!!duplicate} onClick={() => setStep(2)}>Dalej <ArrowRight size={18} /></Button>
+          </div>
+        </section>
+      )}
+
+      {step === 2 && mode && (
+        <section className="animate-rise flex flex-col gap-5">
+          <div className="glass relative overflow-hidden rounded-3xl p-6 md:p-8">
+            <div className="pointer-events-none absolute -top-20 -right-10 h-64 w-64 rounded-full bg-[var(--accent)] opacity-20 blur-3xl" />
+            <div className="text-sm font-bold tracking-[0.2em] text-[var(--muted)] uppercase">Gotowe do gry</div>
+            <div className="mt-1 flex flex-wrap items-baseline gap-x-4">
+              <div className="font-display text-6xl font-extrabold tracking-wide uppercase"><span className="lava-text">{modeName(mode.id, mode.name)}</span></div>
+              <div className="text-xl text-[var(--muted)]">{gameSummary({ mode: mode.id, settings })}</div>
+            </div>
+            <div className="mt-5 flex flex-wrap gap-2">
+              {finalNames.map((n, i) => (
+                <span key={i} className="flex items-center gap-2 rounded-full py-1.5 pr-4 pl-1.5 text-lg font-bold text-white" style={{ background: COLORS[i % COLORS.length] }}>
+                  <span className="grid h-8 w-8 place-items-center rounded-full bg-black/25 font-score">{i + 1}</span>{n}
+                </span>
               ))}
             </div>
-          </Step>
-        )}
-
-        <Step n={3} title="Gracze">
-          <div className="text-sm text-[var(--muted)]">Kliknij, aby dodać do gry. Kolejność na liście = kolejność rzucania.</div>
-          <div className="flex flex-wrap gap-2">
-            {active.map((p) => {
-              const on = selected.includes(p.id);
-              return (
-                <button key={p.id} onClick={() => toggle(p.id)}
-                  className={clsx("flex items-center gap-2 rounded-full border-2 py-1.5 pr-4 pl-1.5 font-semibold transition",
-                    on ? "border-transparent text-white" : "border-[var(--border)] hover:border-[var(--muted)]")}
-                  style={on ? { background: p.color } : undefined}>
-                  <span className="grid h-7 w-7 place-items-center rounded-full text-sm font-bold text-white" style={{ background: on ? "rgba(0,0,0,.25)" : p.color }}>
-                    {on ? selected.indexOf(p.id) + 1 : p.name.slice(0, 1).toUpperCase()}
-                  </span>
-                  {p.name}
-                </button>
-              );
-            })}
+            <div className="mt-6 flex flex-wrap items-center gap-4">
+              <Button size="xl" variant="primary" className="animate-pulse-ring" disabled={create.busy} onClick={() => create.run()}>
+                <Target size={30} /> Zaczynamy!
+              </Button>
+              <span className="text-[var(--muted)]">{finalNames.length} {plural(finalNames.length, "gracz", "graczy", "graczy")} · po 3 lotkach wyjmij je z tarczy</span>
+            </div>
+            <ErrorNote error={create.error} />
           </div>
-          <form className="flex max-w-md gap-2" onSubmit={(e) => { e.preventDefault(); if (newName.trim()) addPlayer.run(); }}>
-            <input className={clsx(inputCls, "flex-1")} value={newName} maxLength={64} onChange={(e) => setNewName(e.target.value)} placeholder="Nowy gracz — wpisz imię" />
-            <Button disabled={!newName.trim() || addPlayer.busy}><UserPlus size={16} /> Dodaj</Button>
-          </form>
-          <ErrorNote error={addPlayer.error} />
-          {selected.length > 0 && (
-            <ol className="flex flex-col gap-1.5">
-              {selected.map((id, i) => {
-                const p = byId(id);
-                return (
-                  <li key={id} className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2">
-                    <span className="w-6 font-score text-xl font-bold text-[var(--muted)]">{i + 1}.</span>
-                    <span className="h-3 w-3 rounded-full" style={{ background: p?.color }} />
-                    <span className="flex-1 font-semibold">{p?.name}</span>
-                    <Button size="sm" variant="ghost" onClick={() => move(i, -1)} disabled={i === 0} aria-label="W górę"><ArrowUp size={16} /></Button>
-                    <Button size="sm" variant="ghost" onClick={() => move(i, 1)} disabled={i === selected.length - 1} aria-label="W dół"><ArrowDown size={16} /></Button>
-                    <Button size="sm" variant="ghost" onClick={() => toggle(id)} aria-label="Usuń z gry"><X size={16} /></Button>
-                  </li>
-                );
-              })}
-            </ol>
+
+          {Object.keys(mode.settings).length > 0 && (
+            <div className="glass rounded-3xl">
+              <button className="flex w-full items-center gap-3 px-5 py-4 text-left" onClick={() => setShowRules((v) => !v)}>
+                <Settings2 size={20} className="text-[var(--accent)]" />
+                <span className="flex-1 font-display text-xl font-bold tracking-wide uppercase">Zasady <span className="text-base font-normal tracking-normal text-[var(--muted)] normal-case">— opcjonalnie, domyślne są w porządku</span></span>
+                <span className={clsx("transition", showRules && "rotate-90")}>›</span>
+              </button>
+              {showRules && (
+                <div className="grid gap-6 border-t border-[var(--border)] p-5 sm:grid-cols-2">
+                  {Object.entries(mode.settings).map(([k, s]) => (
+                    <SettingControl key={k} k={k} s={s} value={settings[k]} onChange={(v) => setSettings({ ...settings, [k]: v })} />
+                  ))}
+                </div>
+              )}
+            </div>
           )}
-        </Step>
-
-        <ErrorNote error={create.error} />
-        <div className="sticky bottom-20 flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-3 md:bottom-4">
-          <div className="min-w-0 flex-1">
-            <div className="font-display font-bold">{mode ? modeName(mode.id, mode.name) : "—"} <span className="font-normal text-[var(--muted)]">{mode && gameSummary({ mode: mode.id, settings })}</span></div>
-            <div className="text-sm text-[var(--muted)]">
-              {selected.length ? `${selected.length} ${plural(selected.length, "gracz", "graczy", "graczy")}` : "Wybierz przynajmniej jednego gracza"}
-            </div>
-          </div>
-          <Button variant="primary" size="lg" disabled={!selected.length || create.busy} onClick={() => create.run()}>Rozpocznij grę</Button>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-function GameDetail({ id, onClose }: { id: string; onClose: () => void }) {
-  const { data: g } = useApi<GameState>(`/api/games/${id}`);
-  const legs: { label: string; turns: Turn[] }[] = g
-    ? [...g.state.leg_history.map((l) => ({ label: `Leg ${l.leg}${g.settings.sets_to_win > 1 ? ` (set ${l.set})` : ""} — wygrał(a) ${g.players[l.winner]?.name}`, turns: l.turns })),
-      ...(g.state.turns.length && !g.state.finished ? [{ label: `Leg ${g.state.leg} (w trakcie)`, turns: g.state.turns }] : [])]
-    : [];
-  return (
-    <Modal open onClose={onClose} title={g ? `${modeName(g.mode, g.mode_name)} — ${g.players.map((p) => p.name).join(" vs ")}` : "Gra"} wide>
-      {!g ? null : legs.length === 0 ? <Empty title="Nie rzucono jeszcze żadnej lotki" /> : (
-        <div className="flex flex-col gap-5">
-          {legs.map((l) => (
-            <div key={l.label}>
-              <div className="mb-2 font-semibold">{l.label}</div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="text-left text-[var(--muted)]"><tr><th className="py-1">Gracz</th><th>Rzuty</th><th className="text-right">Punkty</th></tr></thead>
-                  <tbody>
-                    {l.turns.map((t, i) => (
-                      <tr key={i} className="border-t border-[var(--border)]">
-                        <td className="py-1">{g.players[t.player_index]?.name}</td>
-                        <td className="font-mono">{t.darts.map((d) => dartLabel(d.label)).join("  ")} {t.bust && <Badge tone="bad">bust</Badge>}</td>
-                        <td className="text-right tabular-nums">{t.points}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ))}
-        </div>
+          <div><Button size="lg" onClick={() => setStep(1)}><ArrowLeft size={18} /> Wstecz</Button></div>
+        </section>
       )}
-    </Modal>
+    </div>
   );
 }

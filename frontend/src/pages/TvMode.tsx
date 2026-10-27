@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { useEffect } from "react";
 import { Link } from "react-router";
-import { Dartboard } from "@/components/board/Dartboard";
+import { BoardView } from "@/components/board/BoardView";
 import { Scoreboard } from "@/components/game/Scoreboard";
 import { TurnPanel } from "@/components/game/TurnPanel";
 import { EngineBadge } from "@/components/layout/AppShell";
@@ -31,10 +31,11 @@ export default function TvMode() {
 
   const active = game && game.status !== "finished" && game.status !== "abandoned" ? game : game?.state.finished ? game : null;
   return (
-    <div className="flex h-dvh flex-col gap-4 overflow-hidden bg-[var(--bg)] p-4" style={{ zoom: scale }}>
+    <div className="flex h-dvh flex-col gap-4 overflow-hidden p-4" style={{ zoom: scale }}>
+      <div className="backdrop" />
       <div className="flex items-center justify-between">
         <div className="flex items-baseline gap-4">
-          <div className="font-display text-2xl font-bold">{brand}</div>
+          <div className="font-display text-3xl font-extrabold tracking-wide uppercase">{brand}</div>
           {active && <div className="text-xl text-[var(--muted)]"><b className="text-[var(--text)]">{modeName(active.mode, active.mode_name)}</b> {gameSummary(active)} · Leg {active.state.leg}</div>}
         </div>
         <div className="flex items-center gap-3">
@@ -48,7 +49,7 @@ export default function TvMode() {
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         <div className="relative flex min-h-0 items-center justify-center">
           <div className="aspect-square h-full max-h-full max-w-full">
-            <Dartboard board={board} markers={darts.map((d) => ({ id: d.id, x_mm: d.x_mm, y_mm: d.y_mm, label: dartLabel(d.label), cov: d.cov, uncertain: d.uncertain }))}
+            <BoardView board={board} markers={darts.map((d, i) => ({ id: d.id, x_mm: d.x_mm, y_mm: d.y_mm, label: dartLabel(d.label), cov: d.cov, uncertain: d.uncertain, ghost: i < darts.length - 3 }))}
               highlight={active?.checkout_hint ?? []} />
           </div>
           {lastDart && (

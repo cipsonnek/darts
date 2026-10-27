@@ -21,6 +21,9 @@ class ServerSettings(BaseModel):
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173", "http://127.0.0.1:5173"])
     admin_auth: Literal["localhost", "token", "off"] = "localhost"
     admin_token: str | None = None
+    # PIN that venue staff type on a board to open calibration (digits). null: generated on
+    # first start and stored in data/service_pin.txt.
+    service_pin: str | None = None
     serve_frontend: bool = True
 
 
@@ -93,6 +96,8 @@ def load_settings(extra: dict[str, Any] | None = None) -> AppSettings:
         data = deep_merge(data, {"server": {"port": int(env["DARTSENSE_PORT"])}})
     if env.get("DARTSENSE_MODE"):
         data = deep_merge(data, {"mode": env["DARTSENSE_MODE"]})
+    if env.get("DARTSENSE_SERVICE_PIN"):
+        data = deep_merge(data, {"server": {"service_pin": env["DARTSENSE_SERVICE_PIN"]}})
     if env.get("DARTSENSE_ADMIN_TOKEN"):
         data = deep_merge(data, {"server": {"admin_token": env["DARTSENSE_ADMIN_TOKEN"]}})
     if extra:
@@ -125,3 +130,19 @@ def ensure_admin_token(settings: AppSettings) -> str:
     path.write_text(token, encoding="utf-8")
     settings.server.admin_token = token
     return token
+
+
+def ensure_service_pin(settings: AppSettings) -> str:
+    if settings.server.service_pin:
+        return settings.server.service_pin
+    path = settings.path(settings.data_dir) / "service_pin.txt"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        pin = path.read_text(encoding="utf-8").strip()
+        if pin:
+            settings.server.service_pin = pin
+            return pin
+    pin = f"{secrets.randbelow(10**6):06d}"
+    path.write_text(pin, encoding="utf-8")
+    settings.server.service_pin = pin
+    return pin

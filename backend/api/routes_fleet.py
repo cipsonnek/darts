@@ -1,6 +1,6 @@
 """Fleet management API (central server only).
 
-``/api/fleet/*`` is the operator panel and needs admin rights (``server.admin_auth``).
+``/api/fleet/*`` is the operator panel and needs a signed-in operator (``/api/auth/login``).
 ``/api/fleet/ingest/*`` is called by the boards and authenticates with ``X-Board-Key``.
 """
 
@@ -114,7 +114,7 @@ def _data(m: BaseModel) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------- operator panel
-router = APIRouter(prefix="/api/fleet", tags=["fleet"], dependencies=[Depends(deps.require_admin)])
+router = APIRouter(prefix="/api/fleet", tags=["fleet"], dependencies=[Depends(deps.require_operator)])
 
 
 @router.get("/dashboard")

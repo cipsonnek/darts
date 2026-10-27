@@ -68,7 +68,7 @@ export default function Settings() {
             <Field label="Podpis"><input className={inputCls} value={p.brandTagline} maxLength={60} onChange={(e) => p.set({ brandTagline: e.target.value })} /></Field>
             <Field label="Styl tarczy">
               <select className={inputCls} value={p.boardStyle} onChange={(e) => p.set({ boardStyle: e.target.value as any })}>
-                <option value="classic">Klasyczny</option><option value="minimal">Minimalistyczny</option><option value="neon">Neon</option>
+                <option value="3d">Trójwymiarowa (3D)</option><option value="classic">Klasyczny</option><option value="minimal">Minimalistyczny</option><option value="neon">Neon</option>
               </select>
             </Field>
             <Field label="Wielkość wyników">

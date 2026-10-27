@@ -13,15 +13,16 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend import __version__
-from backend.api import routes_dev, routes_fleet, routes_games, routes_system, routes_vision
+from backend.api import routes_auth, routes_dev, routes_fleet, routes_games, routes_system, routes_vision
 from backend.database import Database
 from backend.logging_setup import configure_logging
+from backend.services.auth_service import AuthService
 from backend.services.fleet_client import FleetReporter
 from backend.services.fleet_service import FleetService
 from backend.services.game_service import GameService
 from backend.services.stats_service import StatsService
 from backend.services.vision_service import VisionService
-from backend.settings import ROOT, AppSettings, ensure_admin_token, load_settings
+from backend.settings import ROOT, AppSettings, ensure_admin_token, ensure_service_pin, load_settings
 from backend.ws.hub import EventHub
 
 log = logging.getLogger("backend")
@@ -43,6 +44,9 @@ def create_app(settings: AppSettings | None = None, start_vision: bool = True) -
         if settings.server.admin_auth != "off":
             log.info("admin token stored in data/admin_token.txt (needed for admin actions from other devices)",
                      extra={"token_prefix": token[:4]})
+        if not central:
+            ensure_service_pin(settings)
+            log.info("service PIN for venue staff (calibration) is in data/service_pin.txt")
         db = Database(settings.database.url)
         db.migrate()
         hub = EventHub()
@@ -59,6 +63,9 @@ def create_app(settings: AppSettings | None = None, start_vision: bool = True) -
         app.state.games = games
         app.state.stats = stats
         app.state.fleet = FleetService(db, settings.fleet)
+        app.state.auth = AuthService(db)
+        if central and not app.state.auth.has_users():
+            log.warning("no operator accounts yet: create one with  python -m backend.users add <login>")
         reporter = FleetReporter(settings, db, vision)
         app.state.fleet_reporter = reporter
 
@@ -110,13 +117,24 @@ def create_app(settings: AppSettings | None = None, start_vision: bool = True) -
         log.exception("unhandled error", extra={"path": request.url.path})
         return JSONResponse({"detail": "internal error", "error": type(exc).__name__}, status_code=500)
 
-    app.include_router(routes_system.router)
-    app.include_router(routes_vision.router)
-    app.include_router(routes_games.router)
-    app.include_router(routes_dev.router)
     if central:
+        # The operator's server exposes only the panel (behind sign-in) and the board ingest
+        # API; none of the board's camera, game or developer endpoints exist here.
+        @app.get("/api/health", tags=["system"])
+        def central_health(request: Request) -> dict:
+            db_ok = request.app.state.db.healthy()
+            return {"status": "ok" if db_ok else "down", "version": __version__, "mode": settings.mode,
+                    "database": "ok" if db_ok else "unavailable"}
+
+        app.include_router(routes_auth.auth)
         app.include_router(routes_fleet.ingest)
         app.include_router(routes_fleet.router)
+    else:
+        app.include_router(routes_system.router)
+        app.include_router(routes_vision.router)
+        app.include_router(routes_games.router)
+        app.include_router(routes_dev.router)
+        app.include_router(routes_auth.service)
 
     @app.websocket("/ws/events")
     async def ws_events(ws: WebSocket) -> None:
@@ -139,6 +157,8 @@ def create_app(settings: AppSettings | None = None, start_vision: bool = True) -
 
         @app.get("/{path:path}", include_in_schema=False)
         async def spa(path: str):  # noqa: ANN202
+            if path == "api" or path.startswith("api/"):
+                return JSONResponse({"detail": "Not Found"}, status_code=404)
             target = (dist / path).resolve()
             if path and target.is_file() and dist.resolve() in target.parents:
                 return FileResponse(target)

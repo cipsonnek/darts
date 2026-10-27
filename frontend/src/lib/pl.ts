@@ -91,8 +91,11 @@ export function tr(dict: Record<string, string>, v: string | null | undefined): 
 }
 
 /** Translate the free-text message the game engine puts in state.message. */
-export function gameMessage(msg: string): string {
-  if (!msg) return "";
+/** Game engine messages in Polish. The engine names players by id; `players` maps them to names. */
+export function gameMessage(raw: string, players: { id: string; name: string }[] = []): string {
+  if (!raw) return "";
+  let msg = raw;
+  for (const p of players) msg = msg.split(p.id).join(p.name);
   if (msg === "BUST") return "BUST — za dużo";
   let m = msg.match(/^(.*) wins leg (\d+)$/);
   if (m) return `${m[1]} wygrywa lega ${m[2]}`;

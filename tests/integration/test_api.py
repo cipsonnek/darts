@@ -190,3 +190,14 @@ def test_admin_token_mode(tmp_path) -> None:
         assert c.get("/api/admin/check").status_code == 401
         assert c.get("/api/admin/check", headers={"X-Admin-Token": "wrong"}).status_code == 401
         assert c.get("/api/admin/check", headers={"X-Admin-Token": "s3cret"}).status_code == 200
+
+
+def test_service_pin_unlocks_admin_token(tmp_path) -> None:
+    app = create_app(_settings(tmp_path, admin_auth="token", admin_token="tok", service_pin="4321"), start_vision=False)
+    with TestClient(app) as c:
+        assert c.post("/api/service/unlock", json={"pin": "0000"}).status_code == 401
+        r = c.post("/api/service/unlock", json={"pin": "4321"})
+        assert r.status_code == 200 and r.json()["admin_token"] == "tok"
+        # a board has no operator panel
+        assert c.get("/api/fleet/dashboard").status_code == 404
+        assert c.post("/api/auth/login", json={"username": "a", "password": "b"}).status_code == 404

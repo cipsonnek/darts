@@ -30,6 +30,8 @@ def _settings(tmp_path, **extra):
 @pytest.fixture()
 def client(tmp_path):
     with TestClient(create_app(_settings(tmp_path))) as c:
+        c.app.state.auth.create_user("operator", "sekretne-haslo")
+        assert c.post("/api/auth/login", json={"username": "operator", "password": "sekretne-haslo"}).status_code == 200
         yield c
 
 
@@ -55,6 +57,41 @@ def _game(i, start, minutes=12):
 def test_fleet_routes_only_on_central(tmp_path):
     with TestClient(create_app(_settings(tmp_path, mode="simulator"), start_vision=False)) as c:
         assert c.get("/api/fleet/venues").status_code == 404
+
+
+def test_operator_panel_needs_sign_in(tmp_path):
+    with TestClient(create_app(_settings(tmp_path))) as c:
+        auth = c.app.state.auth
+        auth.create_user("Jan", "dlugie-haslo-1", "Jan Kowalski")
+        # no session: the panel API and /me are closed, the board's API does not exist here
+        assert c.get("/api/fleet/venues").status_code == 401
+        assert c.get("/api/auth/me").status_code == 401
+        assert c.get("/api/games").status_code == 404
+        assert c.get("/api/cameras").status_code == 404
+        assert c.get("/api/health").json()["mode"] == "central"
+        # wrong password, then the right one (username is case-insensitive)
+        assert c.post("/api/auth/login", json={"username": "jan", "password": "zle"}).status_code == 401
+        r = c.post("/api/auth/login", json={"username": "JAN", "password": "dlugie-haslo-1"})
+        assert r.status_code == 200 and r.json()["user"]["display_name"] == "Jan Kowalski"
+        assert "httponly" in r.headers["set-cookie"].lower()
+        assert c.get("/api/fleet/venues").status_code == 200
+        # password change keeps this browser signed in, the old password stops working
+        assert c.post("/api/auth/password", json={"old_password": "zle", "new_password": "nowe-haslo-22"}).status_code == 400
+        assert c.post("/api/auth/password", json={"old_password": "dlugie-haslo-1", "new_password": "krotkie"}).status_code == 400
+        assert c.post("/api/auth/password", json={"old_password": "dlugie-haslo-1", "new_password": "nowe-haslo-22"}).status_code == 200
+        assert c.get("/api/auth/me").status_code == 200
+        assert c.post("/api/auth/logout").status_code == 204
+        assert c.get("/api/fleet/venues").status_code == 401
+        assert c.post("/api/auth/login", json={"username": "jan", "password": "dlugie-haslo-1"}).status_code == 401
+
+
+def test_login_is_throttled(tmp_path):
+    with TestClient(create_app(_settings(tmp_path))) as c:
+        c.app.state.auth.create_user("jan", "dlugie-haslo-1")
+        for _ in range(8):
+            assert c.post("/api/auth/login", json={"username": "jan", "password": "zle"}).status_code == 401
+        # even the right password waits now
+        assert c.post("/api/auth/login", json={"username": "jan", "password": "dlugie-haslo-1"}).status_code == 429
 
 
 def test_board_lifecycle_ingest_and_settlement(client):

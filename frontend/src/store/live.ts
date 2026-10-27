@@ -32,6 +32,7 @@ interface LiveState {
   feed: FeedItem[];
   setStatus: (ch: "events" | "detection", s: WsStatus) => void;
   setGame: (g: GameState | null) => void;
+  setMode: (m: string) => void;
   clearUncertain: () => void;
   handle: (m: WsMessage) => void;
 }
@@ -88,6 +89,7 @@ export const useLive = create<LiveState>((set, get) => ({
   feed: [],
   setStatus: (ch, s) => set({ [ch]: s } as Partial<LiveState>),
   setGame: (g) => set({ game: g }),
+  setMode: (m) => set({ mode: m }),
   clearUncertain: () => set({ uncertain: null }),
   handle: (m) => {
     const d = m.data;

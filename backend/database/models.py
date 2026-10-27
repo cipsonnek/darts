@@ -258,3 +258,28 @@ class TicketComment(Base):
     status_change: Mapped[str] = mapped_column(String(40), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     ticket: Mapped[Ticket] = relationship(back_populates="comments")
+
+
+# ------------------------------------------------------------------- operator accounts (central)
+# People who sign in to the operator panel on the central server. Passwords are stored as
+# scrypt hashes; a session is a random token kept in an HttpOnly cookie (sha256 stored here).
+
+
+class OperatorUser(Base):
+    __tablename__ = "operator_users"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(64), unique=True)
+    display_name: Mapped[str] = mapped_column(String(120), default="")
+    password_hash: Mapped[str] = mapped_column(String(255))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class OperatorSession(Base):
+    __tablename__ = "operator_sessions"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("operator_users.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    ip: Mapped[str] = mapped_column(String(64), default="")

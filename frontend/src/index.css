@@ -6,22 +6,25 @@
 
 @theme {
   --font-sans: "Inter Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-display: "Inter Variable", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Barlow Condensed", "Inter Variable", "Segoe UI", system-ui, sans-serif;
   --font-score: "Barlow Condensed", "Inter Variable", "Segoe UI", system-ui, sans-serif;
 }
 
-/* Defaults match the "oche" theme so the first paint (before applyTheme runs) does not flash. */
+/* Defaults match the "lava" theme so the first paint (before applyTheme runs) does not flash. */
 :root {
-  --bg: #090c12;
-  --surface: #121721;
-  --surface-2: #1a2130;
-  --border: #283244;
-  --text: #f2f5fa;
-  --muted: #a1abbe;
-  --accent: #e8324a;
-  --good: #2ecc71;
-  --warn: #f5b942;
-  --bad: #ef4f5f;
+  --bg: #0b0807;
+  --surface: #17110f;
+  --surface-2: #221916;
+  --border: #3a2a24;
+  --text: #fbf3ee;
+  --muted: #b9a69c;
+  --accent: #ff5a1f;
+  --accent-2: #ffb020;
+  --good: #34d399;
+  --warn: #fbbf24;
+  --bad: #ff4d5e;
+  --glow-1: #ff5a1f;
+  --glow-2: #b3122e;
   color-scheme: dark;
 }
 
@@ -43,11 +46,36 @@ body {
   font-size: 16px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Ambient backdrop: two slow molten glows behind everything. */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60vmax 60vmax at 110% -10%, color-mix(in oklab, var(--glow-1) 26%, transparent), transparent 60%),
+    radial-gradient(50vmax 50vmax at -15% 115%, color-mix(in oklab, var(--glow-2) 28%, transparent), transparent 60%),
+    var(--bg);
+}
+.backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.06;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.7) 0.6px, transparent 0.6px);
+  background-size: 3px 3px;
+}
+:root[data-theme="light"] .backdrop::after,
+:root[data-theme="contrast"] .backdrop {
+  display: none;
 }
 
 .font-display {
   font-family: var(--font-display);
-  letter-spacing: -0.01em;
+  letter-spacing: 0.005em;
 }
 
 /* Big numbers: remaining score, darts, averages. */
@@ -55,6 +83,57 @@ body {
   font-family: var(--font-score);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
+}
+
+/* Component classes live in a layer so Tailwind utilities (borders, backgrounds) override them. */
+@layer components {
+/* Panels: frosted glass with a lit top edge and real depth. */
+.glass {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--surface) 88%, white 4%), var(--surface));
+  border: 1px solid var(--border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 18px 40px -22px rgba(0, 0, 0, 0.85);
+}
+:root[data-theme="light"] .glass {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 14px 30px -20px rgba(0, 0, 0, 0.25);
+}
+
+/* Chunky 3D buttons: a solid "base" under the face that the button sinks into when pressed. */
+.btn3d {
+  --base: color-mix(in oklab, var(--btn-bg, var(--surface-2)) 55%, black);
+  background: var(--btn-bg, var(--surface-2));
+  box-shadow: 0 5px 0 var(--base), 0 10px 22px -10px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transform: translateY(0);
+  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
+}
+.btn3d:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.btn3d:active:not(:disabled) {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 var(--base), 0 4px 10px -6px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+/* Cards that lean towards the pointer (see useTilt). */
+.tilt {
+  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateZ(0);
+  transform-style: preserve-3d;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.2s ease;
+  will-change: transform;
+}
+.tilt .pop-out {
+  transform: translateZ(30px);
+}
+
+/* Text glowing like molten metal. */
+.lava-text {
+  background: linear-gradient(100deg, var(--accent-2), var(--accent) 45%, color-mix(in oklab, var(--accent) 60%, #b3122e));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
 }
 
 select,
@@ -82,17 +161,38 @@ textarea {
 }
 
 @keyframes rise {
-  from { transform: translateY(6px); opacity: 0; }
+  from { transform: translateY(10px); opacity: 0; }
   to { transform: none; opacity: 1; }
 }
 .animate-rise {
-  animation: rise 0.25s ease-out;
+  animation: rise 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent) 55%, transparent); }
+  100% { box-shadow: 0 0 0 18px transparent; }
+}
+.animate-pulse-ring {
+  animation: pulse-ring 1.6s ease-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .animate-pop,
-  .animate-rise {
+  .animate-rise,
+  .animate-float,
+  .animate-pulse-ring {
     animation: none;
+  }
+  .tilt {
+    transform: none !important;
   }
 }
 

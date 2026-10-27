@@ -1,0 +1,23 @@
+[Unit]
+Description=DartSense central server (operator panel)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+Group=__USER__
+WorkingDirectory=__APP__
+Environment=PYTHONUNBUFFERED=1
+ExecStart=__APP__/.venv/bin/python -m backend --central
+Restart=always
+RestartSec=3
+# hardening: the app writes only to its own data/logs/backups
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=__APP__
+
+[Install]
+WantedBy=multi-user.target

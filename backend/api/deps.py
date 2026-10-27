@@ -7,6 +7,7 @@ import ipaddress
 
 from fastapi import Depends, HTTPException, Request
 
+from backend.services.auth_service import SESSION_COOKIE, AuthService
 from backend.services.game_service import GameService
 from backend.services.stats_service import StatsService
 from backend.services.vision_service import VisionService
@@ -29,6 +30,18 @@ def stats(request: Request) -> StatsService:
     return request.app.state.stats
 
 
+def auth(request: Request) -> AuthService:
+    return request.app.state.auth
+
+
+def require_operator(request: Request, svc: AuthService = Depends(auth)) -> dict:
+    """Operator panel (central server): a signed-in operator account (session cookie)."""
+    user = svc.user_for_token(request.cookies.get(SESSION_COOKIE))
+    if not user:
+        raise HTTPException(status_code=401, detail="Zaloguj się do panelu operatora.")
+    return user
+
+
 def _is_local(request: Request) -> bool:
     host = request.client.host if request.client else ""
     if host in ("testclient", "localhost"):
@@ -43,6 +56,10 @@ def require_admin(request: Request, cfg: AppSettings = Depends(settings)) -> Non
     """Administrative endpoints: calibration writes, camera/config changes, deletions,
     device probing. Policy from ``server.admin_auth``."""
     mode = cfg.server.admin_auth
+    # A central server sits behind a reverse proxy on a public host: "from localhost" says
+    # nothing about who is calling, so it always wants the token.
+    if cfg.mode == "central" and mode == "localhost":
+        mode = "token"
     if mode == "off":
         return
     if mode == "localhost" and _is_local(request):

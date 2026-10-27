@@ -44,7 +44,16 @@ network (`http://<this-pc-ip>:8000`); Windows may ask to allow Python through th
    - optional but recommended: *Lens (intrinsics)* with the printable ChArUco target;
    - *Board position → Detect automatically* for each camera, check the overlay sits on the
      wires, then *Accept calibration*.
-4. **Players → Games → Start game**, throw.
+4. **Nowa gra**, type the players' names, throw.
+
+## Board in a venue: what staff and players see
+
+A board shows only **Graj** (play) and **Nowa gra** (new game) to everyone. **Kalibracja**
+(one-button camera calibration) and the technician pages (cameras, detection, settings,
+tools, history, players, statistics) open only after typing the **service PIN** under
+**Obsługa**; service mode locks itself after 15 idle minutes. The PIN is generated on first
+start in `data/service_pin.txt` (or set `server.service_pin` in `configs/local.yaml`). A board
+has no operator panel.
 
 Settings for one machine (camera indices, ports) can also go in `configs/local.yaml`, which
 overrides `configs/default.yaml` and is not committed.
@@ -60,6 +69,22 @@ cameras:
 .venv\Scripts\python.exe -m backend --central            # http://localhost:8100/operator
 .venv\Scripts\python.exe -m backend.fleet_demo           # optional: demo venues, boards and history
 .venv\Scripts\python.exe -m backend.fleet_demo --live    # keep the demo boards online while it runs
+```
+
+The panel needs a sign-in. Create the first account on the central server (asks for the
+password twice; at least 8 characters):
+
+```powershell
+.venv\Scripts\python.exe -m backend.users add jan --name "Jan Kowalski"
+.venv\Scripts\python.exe -m backend.users passwd jan      # new password
+.venv\Scripts\python.exe -m backend.users list            # also: disable / enable
+```
+
+To put the central server on a Linux VPS, build the package and follow
+[deploy/README-WDROZENIE.md](deploy/README-WDROZENIE.md):
+
+```powershell
+.venv\Scripts\python.exe scripts\package_server.py   # → release\dartsense-serwer-*.tar.gz
 ```
 
 Register a board under **Tarcze → Dodaj tarczę** and paste the generated `fleet:` block into

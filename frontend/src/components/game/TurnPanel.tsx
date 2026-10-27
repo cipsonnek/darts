@@ -19,7 +19,7 @@ export function TurnPanel({ game, big }: { game: GameState; big?: boolean }) {
   const darts = current?.darts ?? [];
   const player = game.players[current ? current.player_index : st.current_player];
   const running = game.status === "running";
-  const message = gameMessage(st.message);
+  const message = gameMessage(st.message, game.players);
 
   const act = useAction(async (path: string, body?: unknown) => {
     setGame(await api.post<GameState>(`/api/games/${game.id}/${path}`, body));
@@ -46,10 +46,10 @@ export function TurnPanel({ game, big }: { game: GameState; big?: boolean }) {
           const next = !d && i === darts.length && running && !st.awaiting_takeout;
           return (
             <button key={i} disabled={!d || !running} onClick={() => d && setFix(d.dart_id)}
-              className={clsx("flex flex-col items-center justify-center rounded-2xl border-2 px-2 transition",
+              className={clsx("flex flex-col items-center justify-center rounded-3xl border-2 px-2 transition",
                 big ? "h-36" : "h-24 md:h-28",
-                d ? "border-[var(--accent)] bg-[color-mix(in_oklab,var(--accent)_14%,var(--surface))] hover:brightness-125"
-                  : next ? "border-dashed border-[var(--accent)]/60 text-[var(--muted)]"
+                d ? "border-[var(--accent)] bg-[color-mix(in_oklab,var(--accent)_16%,var(--surface))] shadow-[0_14px_30px_-18px_var(--accent)] hover:brightness-125"
+                  : next ? "animate-pulse border-dashed border-[var(--accent)]/70 text-[var(--muted)]"
                     : "border-dashed border-[var(--border)] text-[var(--muted)]")}
               title={d ? "Kliknij, aby poprawić ten rzut" : undefined}>
               {d ? (
@@ -79,7 +79,9 @@ export function TurnPanel({ game, big }: { game: GameState; big?: boolean }) {
             <Button size="lg" onClick={() => act.run("undo")} disabled={act.busy}><Undo2 size={18} /> Cofnij</Button>
             <Button size="lg" variant="primary" onClick={() => act.run("next-turn")} disabled={act.busy}><SkipForward size={18} /> Dalej</Button>
           </div>
-          {darts.length > 0 && <div className="text-center text-xs text-[var(--muted)]">Źle policzony rzut? Kliknij go, aby poprawić.</div>}
+          <div className="text-center text-sm text-[var(--muted)]">
+            {darts.length > 0 ? "Źle policzony rzut? Dotknij go, aby poprawić." : "Lotka nie została wykryta? Użyj „Wpisz”."}
+          </div>
         </>
       )}
       <ErrorNote error={act.error} />

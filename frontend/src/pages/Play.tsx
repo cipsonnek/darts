@@ -1,12 +1,12 @@
 import clsx from "clsx";
-import { Pause, Play as PlayIcon, RotateCcw, Trophy, Tv } from "lucide-react";
+import { ArrowRight, Hand, Pause, Play as PlayIcon, RotateCcw, Target, Trophy, Tv, UserPlus } from "lucide-react";
 import { Link, useNavigate } from "react-router";
-import { Dartboard } from "@/components/board/Dartboard";
+import { BoardView } from "@/components/board/BoardView";
 import { CameraView } from "@/components/camera/CameraView";
 import { EventFeed } from "@/components/EventFeed";
 import { Scoreboard } from "@/components/game/Scoreboard";
 import { TurnPanel } from "@/components/game/TurnPanel";
-import { Badge, Button, Card, ErrorNote } from "@/components/ui";
+import { Badge, Button, Card, ErrorNote, useTilt } from "@/components/ui";
 import { useAction, useApi } from "@/hooks/useApi";
 import { useBoardDarts, useBoardGeometry } from "@/hooks/useBoard";
 import { api } from "@/lib/api";
@@ -14,6 +14,7 @@ import { dartLabel, modeName, plural, settingValue } from "@/lib/pl";
 import type { CameraInfo, GameState } from "@/lib/types";
 import { useLive } from "@/store/live";
 import { usePrefs } from "@/store/prefs";
+import { useService } from "@/store/service";
 
 /** One-line description of a game's rules, e.g. "501 · Double Out · do 3 legów". */
 export function gameSummary(g: { mode: string; settings: Record<string, any> }): string {
@@ -32,12 +33,10 @@ export function gameSummary(g: { mode: string; settings: Record<string, any> }):
 }
 
 export const QUICK_STARTS = [
-  { mode: "x01", start: 501, title: "501", sub: "Double Out — klasyk" },
-  { mode: "x01", start: 301, title: "301", sub: "Szybsza partia" },
-  { mode: "cricket", title: "Cricket", sub: "Zamykanie pól 15–20 i bulla" },
-  { mode: "atc", title: "Dookoła tarczy", sub: "Trening: pola 1–20 po kolei" },
-  { mode: "shanghai", title: "Shanghai", sub: "Runda po rundzie" },
-  { mode: "bobs27", title: "Bob's 27", sub: "Trening doubli" },
+  { mode: "x01", start: 501, title: "501", sub: "Klasyk turniejowy" },
+  { mode: "x01", start: 301, title: "301", sub: "Szybka partia" },
+  { mode: "cricket", title: "Cricket", sub: "Zamknij 15–20 i bulla" },
+  { mode: "atc", title: "Dookoła", sub: "Pola 1–20 po kolei" },
 ];
 
 function quickLink(q: (typeof QUICK_STARTS)[number]): string {
@@ -50,7 +49,11 @@ export default function Play() {
   return active ? <GameScreen game={active} /> : <Home />;
 }
 
-function BoardWithLastDart({ highlight = [] }: { highlight?: string[] }) {
+function useStaff(): boolean {
+  return useService((s) => s.until) > Date.now();
+}
+
+function BoardWithLastDart({ highlight = [], className }: { highlight?: string[]; className?: string }) {
   const lastDart = useLive((s) => s.lastDart);
   const board = useBoardGeometry();
   const darts = useBoardDarts();
@@ -59,12 +62,12 @@ function BoardWithLastDart({ highlight = [] }: { highlight?: string[] }) {
     ghost: i < darts.length - 3,
   }));
   return (
-    <div className="relative mx-auto aspect-square w-full max-w-[min(70vh,680px)]">
-      <Dartboard board={board} markers={markers} highlight={highlight} />
+    <div className={clsx("relative mx-auto aspect-square w-full", className)}>
+      <BoardView board={board} markers={markers} highlight={highlight} />
       {lastDart && (
-        <div key={lastDart.dart_id} className="animate-pop absolute top-0 right-0 rounded-2xl border border-[var(--border)] bg-[var(--surface)]/90 px-4 py-2 text-right backdrop-blur">
-          <div className={clsx("font-score text-5xl font-extrabold leading-none", lastDart.uncertain ? "text-[var(--warn)]" : "text-[var(--accent)]")}>{dartLabel(lastDart.score.label)}</div>
-          <div className="mt-1 text-xs text-[var(--muted)]">{lastDart.score.score} pkt · pewność {Math.round(lastDart.confidence.overall * 100)}%</div>
+        <div key={lastDart.dart_id} className="glass animate-pop absolute top-1 right-1 rounded-3xl px-5 py-3 text-right">
+          <div className={clsx("font-score text-6xl font-extrabold leading-none", lastDart.uncertain ? "text-[var(--warn)]" : "lava-text")}>{dartLabel(lastDart.score.label)}</div>
+          <div className="mt-1 text-xs text-[var(--muted)]">{lastDart.score.score} pkt{lastDart.uncertain ? " · sprawdź" : ""}</div>
         </div>
       )}
     </div>
@@ -78,8 +81,8 @@ function CameraStrip() {
   const { data: cams } = useApi<CameraInfo[]>(widgets.cameras ? "/api/cameras" : null);
   if (!widgets.cameras || !cams) return null;
   return (
-    <details className="group rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
-      <summary className="cursor-pointer list-none px-4 py-3 text-[13px] font-bold tracking-[0.08em] text-[var(--muted)] uppercase select-none">
+    <details className="glass group rounded-3xl">
+      <summary className="cursor-pointer list-none px-5 py-3.5 font-display text-[15px] font-bold tracking-[0.1em] text-[var(--muted)] uppercase select-none">
         <span className="inline-block transition group-open:rotate-90">›</span> Podgląd kamer
       </summary>
       <div className="grid grid-cols-1 gap-3 p-3 pt-0 sm:grid-cols-3">
@@ -96,6 +99,7 @@ function GameScreen({ game }: { game: GameState }) {
   const setGame = useLive((s) => s.setGame);
   const widgets = usePrefs((s) => s.widgets);
   const layout = usePrefs((s) => s.layout);
+  const staff = useStaff();
   const st = game.state;
   const cfg = game.settings;
   const toggle = useAction(async () => {
@@ -106,16 +110,18 @@ function GameScreen({ game }: { game: GameState }) {
     <Card className="h-full"><TurnPanel game={game} /></Card>
   );
   const board = widgets.board && (
-    <Card className={clsx("h-full", layout === "board-left" && "lg:order-first")}><BoardWithLastDart highlight={widgets.checkout ? game.checkout_hint ?? [] : []} /></Card>
+    <div className={clsx("flex items-center justify-center", layout === "board-left" && "lg:order-first")}>
+      <BoardWithLastDart highlight={widgets.checkout ? game.checkout_hint ?? [] : []} className="max-w-[min(72vh,720px)]" />
+    </div>
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-full sm:basis-auto">
           <div className="flex flex-wrap items-baseline gap-x-3">
-            <h1 className="font-display text-2xl font-extrabold md:text-3xl">{modeName(game.mode, game.mode_name)}</h1>
-            <span className="text-[var(--muted)]">{gameSummary(game)}</span>
+            <h1 className="font-display text-4xl font-extrabold tracking-wide uppercase md:text-5xl">{modeName(game.mode, game.mode_name)}</h1>
+            <span className="text-lg text-[var(--muted)]">{gameSummary(game)}</span>
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
             {cfg.sets_to_win > 1 && <span>Set <b className="text-[var(--text)]">{st.set}</b></span>}
@@ -126,11 +132,11 @@ function GameScreen({ game }: { game: GameState }) {
         </div>
         <div className="flex flex-wrap gap-2">
           {!st.finished && (
-            <Button onClick={() => toggle.run()} disabled={toggle.busy} variant={game.status === "paused" ? "primary" : "secondary"}>
-              {game.status === "paused" ? <><PlayIcon size={16} /> Wznów</> : <><Pause size={16} /> Pauza</>}
+            <Button size="lg" onClick={() => toggle.run()} disabled={toggle.busy} variant={game.status === "paused" ? "primary" : "secondary"}>
+              {game.status === "paused" ? <><PlayIcon size={18} /> Wznów</> : <><Pause size={18} /> Pauza</>}
             </Button>
           )}
-          <Link to="/tv"><Button><Tv size={16} /> Tryb TV</Button></Link>
+          <Link to="/tv"><Button size="lg"><Tv size={18} /> Tryb TV</Button></Link>
         </div>
       </div>
       <ErrorNote error={toggle.error} />
@@ -139,13 +145,13 @@ function GameScreen({ game }: { game: GameState }) {
       {widgets.scoreboard && <Scoreboard game={game} />}
 
       {(turn || board) && (
-        <div className={clsx("grid gap-4", layout === "stacked" || !turn || !board ? "grid-cols-1" : "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]")}>
+        <div className={clsx("grid items-start gap-5", layout === "stacked" || !turn || !board ? "grid-cols-1" : "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]")}>
           {turn}{board}
         </div>
       )}
 
-      {widgets.feed && <Card title="Zdarzenia"><EventFeed limit={8} /></Card>}
-      <CameraStrip />
+      {staff && widgets.feed && <Card title="Zdarzenia"><EventFeed limit={8} /></Card>}
+      {staff && <CameraStrip />}
     </div>
   );
 }
@@ -157,49 +163,94 @@ function WinnerCard({ game }: { game: GameState }) {
     setGame(await api.post<GameState>("/api/games", { mode: game.mode, settings: game.settings, player_ids: game.players.map((p) => p.id) }));
   });
   return (
-    <Card className="animate-rise border-[var(--good)]/50">
-      <div className="flex flex-wrap items-center gap-5">
-        <div className="grid h-16 w-16 place-items-center rounded-full bg-[color-mix(in_oklab,var(--good)_20%,transparent)] text-[var(--good)]"><Trophy size={34} /></div>
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold tracking-wide text-[var(--muted)] uppercase">Zwycięzca</div>
-          <div className="truncate font-display text-4xl font-extrabold text-[var(--good)] md:text-5xl">{game.winner?.name}</div>
+    <div className="glass animate-rise relative overflow-hidden rounded-3xl border-[var(--good)]/60 p-6 md:p-8">
+      <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-[var(--good)] opacity-15 blur-3xl" />
+      <div className="flex flex-wrap items-center gap-6">
+        <div className="animate-float grid h-24 w-24 place-items-center rounded-full bg-[color-mix(in_oklab,var(--accent-2)_25%,transparent)] text-[var(--accent-2)] shadow-[0_0_60px_-10px_var(--accent-2)]">
+          <Trophy size={50} />
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button size="lg" variant="primary" onClick={() => rematch.run()} disabled={rematch.busy}><RotateCcw size={18} /> Rewanż</Button>
-          <Button size="lg" onClick={() => { setGame(null); nav("/games"); }}>Nowa gra</Button>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-bold tracking-[0.2em] text-[var(--muted)] uppercase">Zwycięzca</div>
+          <div className="truncate font-display text-6xl font-extrabold tracking-wide uppercase md:text-7xl"><span className="lava-text">{game.winner?.name}</span></div>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <Button size="xl" variant="primary" onClick={() => rematch.run()} disabled={rematch.busy}><RotateCcw size={26} /> Rewanż</Button>
+          <Button size="xl" onClick={() => { setGame(null); nav("/games"); }}>Nowa gra</Button>
         </div>
       </div>
       <ErrorNote error={rematch.error} />
-    </Card>
+    </div>
   );
 }
 
-function Home() {
+function QuickTile({ q }: { q: (typeof QUICK_STARTS)[number] }) {
+  const tilt = useTilt<HTMLAnchorElement>(10);
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-3xl font-extrabold md:text-4xl">Zagrajmy!</h1>
-        <p className="mt-1 text-[var(--muted)]">Wybierz grę, dodaj graczy i rzucaj — punkty liczą się same.</p>
+    <Link to={quickLink(q)} {...tilt}
+      className="glass tilt group flex min-h-32 flex-col justify-between rounded-3xl p-4 hover:border-[var(--accent)]">
+      <div className="pop-out font-score text-5xl leading-none font-extrabold transition group-hover:text-[var(--accent)]">{q.title}</div>
+      <div className="mt-3 flex items-center justify-between gap-2 text-sm text-[var(--muted)]">
+        {q.sub}
+        <ArrowRight size={16} className="shrink-0 opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100" />
       </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        {QUICK_STARTS.map((q) => (
-          <Link key={q.title} to={quickLink(q)}
-            className="group flex min-h-32 flex-col justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 transition hover:-translate-y-0.5 hover:border-[var(--accent)]">
-            <div className="font-score text-4xl font-extrabold leading-none group-hover:text-[var(--accent)]">{q.title}</div>
-            <div className="mt-3 text-sm text-[var(--muted)]">{q.sub}</div>
-          </Link>
-        ))}
-      </div>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <Card title="Wolna gra">
-          <BoardWithLastDart />
-          <p className="mt-3 text-center text-sm text-[var(--muted)]">Bez rozpoczętej gry wykryte lotki pojawiają się na tarczy, ale nie są liczone.</p>
-        </Card>
-        <div className="flex flex-col gap-4">
-          <Card title="Zdarzenia"><EventFeed /></Card>
+    </Link>
+  );
+}
+
+const HOW = [
+  { icon: Target, title: "Wybierz grę", text: "Kliknij „Nowa gra” albo jedną z gier poniżej." },
+  { icon: UserPlus, title: "Wpisz graczy", text: "Wystarczą imiona — kolejność rzucania ustawisz strzałkami." },
+  { icon: Hand, title: "Rzucaj!", text: "Punkty liczą się same. Po 3 lotkach wyjmij je z tarczy." },
+];
+
+function Home() {
+  const nav = useNavigate();
+  return (
+    <div className="flex flex-col gap-10">
+      <section className="grid items-center gap-8 lg:min-h-[calc(100dvh-170px)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+        <div className="flex flex-col gap-6">
+          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-xs font-bold tracking-[0.18em] text-[var(--muted)] uppercase">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--good)]" /> Automatyczne liczenie punktów
+          </div>
+          <h1 className="font-display text-6xl leading-[0.92] font-extrabold tracking-wide uppercase md:text-7xl xl:text-8xl">
+            Rzucaj.<br /><span className="lava-text">Reszta liczy się sama.</span>
+          </h1>
+          <p className="max-w-xl text-lg text-[var(--muted)]">
+            Trzy kamery widzą każdą lotkę. Nie musisz niczego wpisywać — wybierz grę, dodaj graczy i graj.
+          </p>
+          <div>
+            <Button size="xl" variant="primary" className="animate-pulse-ring" onClick={() => nav("/games")}>
+              <Target size={30} /> Nowa gra
+            </Button>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {QUICK_STARTS.map((q) => <QuickTile key={q.title} q={q} />)}
+          </div>
         </div>
-      </div>
-      <CameraStrip />
+        <div className="relative">
+          <div className="pointer-events-none absolute inset-[12%] rounded-full bg-[var(--accent)] opacity-20 blur-[90px]" />
+          <BoardWithLastDart className="max-w-[min(78vh,760px)]" />
+        </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-3">
+        {HOW.map((h, i) => {
+          const Icon = h.icon;
+          return (
+            <div key={h.title} className="glass flex items-start gap-4 rounded-3xl p-5">
+              <div className="relative grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[var(--surface-2)] text-[var(--accent)]">
+                <Icon size={26} />
+                <span className="absolute -top-2 -left-2 grid h-7 w-7 place-items-center rounded-full bg-[var(--accent)] font-score text-lg font-bold text-white">{i + 1}</span>
+              </div>
+              <div>
+                <div className="font-display text-2xl font-bold tracking-wide uppercase">{h.title}</div>
+                <div className="text-[var(--muted)]">{h.text}</div>
+              </div>
+            </div>
+          );
+        })}
+      </section>
+      <p className="text-center text-sm text-[var(--muted)]">Bez rozpoczętej gry rzucone lotki też pojawią się na tarczy — ale nie są liczone.</p>
     </div>
   );
 }

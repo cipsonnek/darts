@@ -39,7 +39,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   try {
     res = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   } catch (e) {
-    throw new ApiError(0, "Brak połączenia z serwerem — czy DartSense jest uruchomiony?", e);
+    throw new ApiError(0, "Brak połączenia z serwerem. Sprawdź, czy komputer tarczy jest włączony.", e);
   }
   if (res.status === 204) return undefined as T;
   const text = await res.text();
@@ -50,6 +50,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     data = text;
   }
   if (!res.ok) {
+    // The operator panel listens for this to show the sign-in screen again.
+    if (res.status === 401 && (path.startsWith("/api/fleet") || path.startsWith("/api/auth/me"))) {
+      window.dispatchEvent(new Event("dartsense:signed-out"));
+    }
     const detail = data?.detail;
     const msg =
       typeof detail === "string"

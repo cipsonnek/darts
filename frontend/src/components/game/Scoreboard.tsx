@@ -104,15 +104,15 @@ export function Scoreboard({ game, big }: { game: GameState; big?: boolean }) {
           const won = st.winner === i;
           return (
             <div key={p.id}
-              className={clsx("relative flex flex-col overflow-hidden rounded-2xl border transition",
+              className={clsx("glass relative flex flex-col overflow-hidden rounded-3xl transition duration-300",
                 compact ? "p-3" : "p-4 md:p-5",
-                won ? "border-[var(--good)] bg-[color-mix(in_oklab,var(--good)_10%,var(--surface))]"
-                  : active ? "border-[var(--accent)] bg-[color-mix(in_oklab,var(--accent)_9%,var(--surface))] shadow-[0_0_40px_-12px_var(--accent)]"
-                    : "border-[var(--border)] bg-[var(--surface)] opacity-80")}>
-              <div className="absolute inset-x-0 top-0 h-1.5" style={{ background: p.color }} />
+                won ? "border-[var(--good)] bg-[color-mix(in_oklab,var(--good)_12%,var(--surface))]"
+                  : active ? "z-10 -translate-y-1 scale-[1.015] border-[var(--accent)] bg-[color-mix(in_oklab,var(--accent)_12%,var(--surface))] shadow-[0_24px_60px_-24px_var(--accent)]"
+                    : "opacity-75")}>
+              <div className="absolute inset-x-0 top-0 h-1.5" style={{ background: p.color, boxShadow: `0 0 18px ${p.color}` }} />
               <div className="flex items-center gap-2">
                 {active && !st.awaiting_takeout && <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-[var(--accent)]" aria-label="rzuca" />}
-                <div className={clsx("min-w-0 flex-1 truncate font-display font-bold", compact ? "text-base" : "text-lg md:text-xl")}>{p.name}</div>
+                <div className={clsx("min-w-0 flex-1 truncate font-display font-bold tracking-wide uppercase", compact ? "text-lg" : "text-xl md:text-2xl")}>{p.name}</div>
                 <div className="flex flex-col items-end gap-1 text-xs text-[var(--muted)]">
                   {showSets && <div className="flex items-center gap-1.5">S <LegPips won={st.sets_won[i]} of={cfg.sets_to_win} /></div>}
                   {cfg.legs_to_win_set > 1 && <div className="flex items-center gap-1.5">L <LegPips won={st.legs_won[i]} of={cfg.legs_to_win_set} /></div>}
@@ -120,11 +120,11 @@ export function Scoreboard({ game, big }: { game: GameState; big?: boolean }) {
               </div>
               <div className="mt-1 flex items-end justify-between gap-2">
                 <div className={clsx("font-score font-extrabold leading-[0.9]",
-                  compact ? "text-6xl" : huge ? "text-[7rem] md:text-[9rem]" : active ? "text-[5.5rem] md:text-[7.5rem]" : "text-7xl md:text-8xl",
-                  won && "text-[var(--good)]")}>
+                  compact ? "text-6xl" : huge ? "text-[7rem] md:text-[9rem]" : active ? "text-7xl sm:text-[5.5rem] md:text-[7.5rem]" : "text-6xl sm:text-7xl md:text-8xl",
+                  won && "text-[var(--good)]", active && !won && "drop-shadow-[0_6px_24px_color-mix(in_oklab,var(--accent)_45%,transparent)]")}>
                   {mainValue(game, i)}
                 </div>
-                <div className="pb-2 text-xs font-medium tracking-wide text-[var(--muted)] uppercase">{mainCaption(game)}</div>
+                <div className="hidden pb-2 text-xs font-medium tracking-wide text-[var(--muted)] uppercase sm:block">{mainCaption(game)}</div>
               </div>
               {active && game.checkout_hint && game.checkout_hint.length > 0 && (
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -137,7 +137,7 @@ export function Scoreboard({ game, big }: { game: GameState; big?: boolean }) {
                 {stats(game, i).map((x) => (
                   <div key={x.label} className="min-w-0">
                     <div className="truncate text-[11px] font-semibold tracking-wide text-[var(--muted)] uppercase">{x.label}</div>
-                    <div className={clsx("font-score font-bold leading-tight", compact ? "text-xl" : "text-2xl md:text-3xl", x.value === "BUST" && "text-[var(--bad)]")}>{x.value}</div>
+                    <div className={clsx("truncate font-score font-bold leading-tight", compact ? "text-xl" : "text-xl sm:text-2xl md:text-3xl", x.value === "BUST" && "text-[var(--bad)]")}>{x.value}</div>
                   </div>
                 ))}
               </div>
@@ -161,7 +161,7 @@ function Mark({ n }: { n: number }) {
 
 function CricketTable({ game }: { game: GameState }) {
   return (
-    <div className="overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+    <div className="glass overflow-x-auto rounded-3xl">
       <table className="w-full text-center">
         <thead>
           <tr className="text-sm text-[var(--muted)]">

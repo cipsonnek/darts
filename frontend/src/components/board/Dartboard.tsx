@@ -35,7 +35,7 @@ export function Dartboard({ board = DEFAULT_BOARD, markers = [], heat, onClick, 
   const style = usePrefs((s) => s.boardStyle);
   const showNumbers = usePrefs((s) => s.showBoardNumbers);
   const showUncertainty = usePrefs((s) => s.showUncertainty);
-  const pal = PALETTES[style];
+  const pal = PALETTES[style === "3d" ? "classic" : style];
   const svgRef = useRef<SVGSVGElement>(null);
   const R = board.board_radius_mm;
   const rr = board.radii_mm;
