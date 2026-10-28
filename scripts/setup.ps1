@@ -15,7 +15,15 @@ function Need($cmd, $hint) {
 Need "python" "Install Python 3.10-3.12 from python.org (tick 'Add python.exe to PATH')."
 Need "npm" "Install Node.js 20 LTS or newer from nodejs.org."
 
-$pyver = & python -c "import sys; print('%d.%d' % sys.version_info[:2])"
+# Take the last "X.Y" line: python may print other lines first (startup warnings, Store alias).
+$pyout = @(& python -c "import sys; print('%d.%d' % sys.version_info[:2])" 2>&1 | ForEach-Object { "$_" })
+$pyver = $pyout | Where-Object { $_ -match '^\d+\.\d+$' } | Select-Object -Last 1
+if (-not $pyver) {
+    Write-Host "Could not run Python. It printed:" -ForegroundColor Red
+    $pyout | ForEach-Object { Write-Host "  $_" }
+    Write-Host "Install Python 3.12 from python.org (tick 'Add python.exe to PATH'), then open a new PowerShell." -ForegroundColor Red
+    exit 1
+}
 Write-Host "Python $pyver, Node $(& node --version)"
 if ([version]$pyver -lt [version]"3.10") { Write-Host "Python 3.10 or newer is required." -ForegroundColor Red; exit 1 }
 
