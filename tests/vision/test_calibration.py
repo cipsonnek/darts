@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 import pytest
 
+from vision.board_detection.rings import ring_outside_model
 from vision.calibration.board_pose import calibrate_board, landmarks
 from vision.calibration.intrinsics import IntrinsicsCalibrator, IntrinsicsResult, make_charuco_board, render_charuco
 from vision.calibration.refine import EdgeAligner
@@ -143,3 +144,47 @@ def test_charuco_intrinsics_recovered() -> None:
     assert len(errs) >= 3
     assert max(errs) < 0.6
     assert make_charuco_board(cfg) is not None
+
+
+def _hide_ring_arc(img: np.ndarray, cam: CameraModel, board, start_deg: float, span_deg: float) -> np.ndarray:
+    """Paint part of the double ring dark, as glare or a thin far side does on a real board."""
+    rr = board.ring_radii
+    out = img.copy()
+    for t in np.arange(start_deg, start_deg + span_deg, 1.0):
+        quad = [(r, a) for r, a in ((rr["double_inner"] - 1, t), (rr["double_outer"] + 1, t),
+                                    (rr["double_outer"] + 1, t + 1.5), (rr["double_inner"] - 1, t + 1.5))]
+        pts = cam.project(np.array([[*board.from_polar(r, a), 0.0] for r, a in quad]))
+        cv2.fillConvexPoly(out, np.round(pts).astype(np.int32), (25, 25, 25))
+    return out
+
+
+@pytest.mark.parametrize("start", [0.0, 240.0])
+def test_triple_ring_is_not_taken_for_the_double(world, sim_rig, board, start) -> None:
+    """With part of the double ring unreadable the triple ring shows the better colour pattern.
+    Both have wires in the same places, so taking it for the double fits well at 0.6x the size."""
+    cam = sim_rig["cam1"]
+    img = _hide_ring_arc(world.render("cam1", 0.0), cam, board, start, 120.0)
+    res = calibrate_board(img, VisionConfig(), "cam1", intrinsics=_intr(cam), azimuth_prior_deg=0)
+    assert res.ok, res.reason
+    assert board_shift_mm(cam, res.camera) < 2.0
+
+
+@pytest.mark.parametrize("start,span", [(0.0, 170.0), (120.0, 120.0), (120.0, 170.0), (240.0, 170.0)])
+def test_badly_damaged_ring_never_gives_a_wrong_size(world, sim_rig, board, start, span) -> None:
+    """Far side or almost half of the double ring gone: calibration may fail, but must not
+    succeed wrongly."""
+    cam = sim_rig["cam1"]
+    img = _hide_ring_arc(world.render("cam1", 0.0), cam, board, start, span)
+    res = calibrate_board(img, VisionConfig(), "cam1", intrinsics=_intr(cam), azimuth_prior_deg=0)
+    assert not res.ok or board_shift_mm(cam, res.camera) < 2.0
+
+
+def test_model_on_the_triple_ring_is_noticed(world, sim_rig, board) -> None:
+    """A camera model too far away by the double/triple ratio puts its double ring on the
+    real triple, which the edge checks cannot see."""
+    cam = sim_rig["cam1"]
+    img = world.render("cam1", 0.0)
+    cfg = VisionConfig()
+    assert not ring_outside_model(img, cam, board, cfg.board_detection)
+    far = CameraModel(cam.K, cam.dist, cam.R, cam.t * (170.0 / 103.0), cam.image_size, "cam1")
+    assert ring_outside_model(img, far, board, cfg.board_detection)

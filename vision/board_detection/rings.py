@@ -287,6 +287,60 @@ def _blob_ring_layers(red: np.ndarray, green: np.ndarray, max_layers: int = 3,
     return layers
 
 
+def _outer_ring_fit(ring_mask: np.ndarray, ellipse: tuple, lo: float, hi: float) -> tuple[tuple, np.ndarray] | None:
+    """The ring outside ``ellipse``, from coloured edge points between lo and hi times its size.
+    Concentric rings share their shape, so only centre and scale are fitted: that stays well
+    conditioned when just part of the ring is visible, where a free ellipse does not."""
+    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+    contours, _ = cv2.findContours(cv2.morphologyEx(ring_mask, cv2.MORPH_CLOSE, k), cv2.RETR_EXTERNAL,
+                                   cv2.CHAIN_APPROX_NONE)
+    contours = [c for c in contours if cv2.contourArea(c) >= 12]
+    if not contours:
+        return None
+    all_pts = np.concatenate([c.reshape(-1, 2) for c in contours]).astype(np.float64)
+    rho = _ellipse_radius(all_pts, ellipse)
+    keep = (rho > lo) & (rho < hi)
+    pts, rho = all_pts[keep], rho[keep]
+    if len(pts) < 40:
+        return None
+    (cx, cy), (w, h), angle = ellipse
+    t = math.radians(angle)
+    c, s = math.cos(t), math.sin(t)
+    a, b = w / 2.0, h / 2.0
+    ang = np.arctan2(pts[:, 1] - cy, pts[:, 0] - cx)
+    bins = ((ang + np.pi) / (2 * np.pi) * 720).astype(int) % 720
+    order = np.lexsort((-rho, bins))
+    first = np.ones(len(order), dtype=bool)
+    first[1:] = bins[order][1:] != bins[order][:-1]
+    outer = pts[order[first]]
+    # In the ellipse's normalised frame the ring is a circle.
+    dx, dy = outer[:, 0] - cx, outer[:, 1] - cy
+    uv = np.stack([(dx * c + dy * s) / a, (-dx * s + dy * c) / b], axis=1)
+
+    def circle(q: np.ndarray) -> tuple[float, float, float] | None:
+        A = np.column_stack([2 * q, np.ones(len(q))])
+        sol, *_ = np.linalg.lstsq(A, (q ** 2).sum(1), rcond=None)
+        r2 = sol[2] + sol[0] ** 2 + sol[1] ** 2
+        return (float(sol[0]), float(sol[1]), math.sqrt(r2)) if r2 > 0 else None
+
+    rng = np.random.default_rng(0)
+    best, best_inl = None, None
+    for _ in range(300):
+        fit = circle(uv[rng.choice(len(uv), size=3, replace=False)])
+        if fit is None or not lo <= fit[2] <= hi:
+            continue
+        inl = np.abs(np.hypot(uv[:, 0] - fit[0], uv[:, 1] - fit[1]) - fit[2]) < 0.02 * fit[2]
+        if best_inl is None or inl.sum() > best_inl.sum():
+            best, best_inl = fit, inl
+    if best is None or best_inl.sum() < 20:
+        return None
+    best = circle(uv[best_inl]) or best
+    uc, vc, scale = best
+    fitted = ((cx + uc * a * c - vc * b * s, cy + uc * a * s + vc * b * c), (w * scale, h * scale), angle)
+    near = np.abs(_ellipse_radius(all_pts, fitted) - 1.0) < 0.02
+    return (fitted, all_pts[near]) if near.sum() >= 20 else None
+
+
 def _ellipse_radius(pts: np.ndarray, ellipse: tuple) -> np.ndarray:
     (cx, cy), (w, h), angle = ellipse
     a, b = w / 2.0, h / 2.0
@@ -356,6 +410,24 @@ def _transitions(labels: np.ndarray, min_run: int) -> list[tuple[float, int]]:
     return out
 
 
+def ring_outside_model(image_bgr: np.ndarray, cam: CameraModel, board: BoardGeometry,
+                       cfg: BoardDetectionConfig) -> bool:
+    """True when the alternating red/green of a scoring ring shows where the model has only
+    the background, past the board's edge: the model's double ring lies on the real triple."""
+    rr = board.ring_radii
+    scale = (rr["double_inner"] + rr["double_outer"]) / (rr["triple_inner"] + rr["triple_outer"])
+    red, green = segment_ring_colors(image_bgr, cfg)
+    thetas = np.linspace(0.0, 360.0, 1440, endpoint=False)
+    votes = []
+    for r in np.linspace(rr["double_inner"], rr["double_outer"], 7) * scale:
+        pts = cam.project(np.array([[*board.from_polar(float(r), float(t)), 0.0] for t in thetas]))
+        votes.append(_labels_at(red, green, pts))
+    v = np.stack(votes)
+    n_red, n_green = (v == RED).sum(0), (v == GREEN).sum(0)
+    lab = np.where(n_red > n_green, RED, np.where(n_green > n_red, GREEN, 0)).astype(np.int8)
+    return len(_transitions(lab, min_run=3)) >= board.n_sectors // 2
+
+
 class BoardDetector:
     def __init__(self, board: BoardGeometry, config: BoardDetectionConfig | None = None) -> None:
         self.board = board
@@ -363,7 +435,7 @@ class BoardDetector:
 
     def detect(self, image_bgr: np.ndarray, K: np.ndarray, dist: np.ndarray,
                azimuth_prior_deg: float | None = None, hint_px: tuple[float, float] | None = None,
-               camera_id: str = "") -> BoardDetection:
+               camera_id: str = "", assume_triple: bool = False) -> BoardDetection:
         h, w = image_bgr.shape[:2]
         red, green = segment_ring_colors(image_bgr, self.cfg)
         ring = cv2.bitwise_or(red, green)
@@ -379,20 +451,45 @@ class BoardDetector:
         n = self.board.n_sectors
         # Score every concentric candidate by the alternating red/green pattern a ring band
         # must show; the double ring is the largest candidate with (nearly) the best score.
-        scored = []
-        for ellipse, edge in layers:
+        def score(ellipse: tuple, edge: np.ndarray, band: float = inner_scale) -> tuple:
             # The far side of the band can be only 2-3 px thick: vote across the band.
             votes = np.stack([_labels_at(red, green, _ellipse_points(ellipse, params, s))
-                              for s in np.linspace(inner_scale - 0.01, 0.995, 9)])
+                              for s in np.linspace(band - 0.01, 0.995, 9)])
             n_red = (votes == RED).sum(0)
             n_green = (votes == GREEN).sum(0)
             lab = np.where(n_red > n_green, RED, np.where(n_green > n_red, GREEN, 0)).astype(np.int8)
             lab[(votes == -1).any(0)] = -1
             tr = _transitions(lab, min_run=max(3, n_samples // 400))
             count = len(tr) if len(tr) <= n else max(0, 2 * n - len(tr))
-            scored.append((ellipse, edge, lab, tr, count))
+            return ellipse, edge, lab, tr, count
+
+        scored = [score(e, edge) for e, edge in layers]
         best_count = max(s[4] for s in scored)
-        ellipse, self._edge_pts, labels, trans, _ = next(s for s in scored if s[4] >= max(6, 0.7 * best_count))
+        chosen = next((s for s in scored if s[4] >= max(6, 0.7 * best_count)), None)
+        if chosen is None:
+            chosen = max(scored, key=lambda s: s[4])
+        # The triple ring has the same colours and wires as the double, so when part of the
+        # double is unreadable it wins on score and everything still seems to fit, at 0.6x the
+        # size. A ring of the right size outside the chosen one means the chosen one is the
+        # triple. It is then read as what it is: unlike the damaged double it is complete.
+        ratio = rr["double_outer"] / rr["triple_outer"]
+        lo, hi = ratio - 0.15, ratio + 0.25  # wider above: perspective enlarges the outer ring
+
+        def size_ratio(e: tuple) -> float:
+            return math.sqrt((e[1][0] * e[1][1]) / (chosen[0][1][0] * chosen[0][1][1]))
+
+        is_triple = assume_triple or any(lo <= size_ratio(s[0]) <= hi and s[4] >= 6 for s in scored)
+        if not is_triple:
+            fit = _outer_ring_fit(ring, chosen[0], lo - 0.1, hi + 0.1)
+            is_triple = fit is not None and lo <= size_ratio(fit[0]) <= hi and score(*fit)[4] >= 6
+        ring_inner, ring_outer = rr["double_inner"], rr["double_outer"]
+        if is_triple:
+            ring_inner, ring_outer = rr["triple_inner"], rr["triple_outer"]
+            mid_scale = ((ring_inner + ring_outer) / 2) / ring_outer
+            # Several candidates sit on this ring: take the one that reads it best.
+            same = [score(s[0], s[1], ring_inner / ring_outer) for s in scored if 0.88 <= size_ratio(s[0]) <= 1.12]
+            chosen = max(same, key=lambda s: (s[4], s[0][1][0] * s[0][1][1]))
+        ellipse, self._edge_pts, labels, trans, _ = chosen
         if (labels == -1).mean() > 0.02:
             return BoardDetection(False, "the double ring is partly outside the image", ellipse)
         if len(trans) < 6:
@@ -403,7 +500,7 @@ class BoardDetector:
         colours = [c for _, c in trans]
 
         und = _undistort(trans_px, K, dist)
-        r_mid = (rr["double_inner"] + rr["double_outer"]) / 2
+        r_mid = (ring_inner + ring_outer) / 2
         angles = self.board.sector_boundary_angles()
         first_red = self.board.config.first_sector_ring_color == "red"
         candidates: list[RotationCandidate] = []
@@ -411,7 +508,7 @@ class BoardDetector:
             # Thin far-side segments can vanish entirely. Assign the transitions that were
             # found through a metric pose of the double-ring circle instead of by count.
             candidates = self._candidates_from_circle_pose(
-                red, green, ellipse, trans_px, K, dist, (w, h), camera_id)
+                red, green, ellipse, trans_px, K, dist, (w, h), camera_id, ring_inner, ring_outer)
             if not candidates:
                 return BoardDetection(False, f"found {len(trans)} of {n} colour transitions and could not "
                                       "assign them (remove darts and obstructions, check lighting)", ellipse)
@@ -453,6 +550,12 @@ class BoardDetector:
         det.correspondences = self._collect(image_bgr, red, green, det.chosen, K, dist)
         bxy = np.array([c[0] for c in det.correspondences])[:, :2]
         cpx = np.array([c[1] for c in det.correspondences])
+        # Wires read in glare or on a damaged stretch of a ring are wrong: fit past them.
+        H_all, inl = cv2.findHomography(bxy, _undistort(cpx, K, dist), cv2.RANSAC, 3.0)
+        if H_all is not None and inl.sum() >= max(8, len(bxy) // 2):
+            keep = inl.ravel().astype(bool)
+            bxy, cpx = bxy[keep], cpx[keep]
+            det.correspondences = [c for c, k in zip(det.correspondences, keep) if k]
         cam, rms = _pnp(bxy, cpx, K, dist, (w, h), camera_id)
         H_all, _ = cv2.findHomography(bxy, _undistort(cpx, K, dist), 0)
         if cam is None or H_all is None or _homography_rms(H_all, bxy, _undistort(cpx, K, dist)) > self.cfg.max_pnp_rms_px:
@@ -463,16 +566,15 @@ class BoardDetector:
         det.chosen.reprojection_rms_px = rms
         return det
 
-    def _candidates_from_circle_pose(self, red, green, ellipse, trans_px, K, dist, size, camera_id
-                                     ) -> list[RotationCandidate]:
-        rr = self.board.ring_radii
-        r_mid = (rr["double_inner"] + rr["double_outer"]) / 2
+    def _candidates_from_circle_pose(self, red, green, ellipse, trans_px, K, dist, size, camera_id,
+                                     ring_inner, ring_outer) -> list[RotationCandidate]:
+        r_mid = (ring_inner + ring_outer) / 2
         n = self.board.n_sectors
         step = self.board.sector_angle_deg
         first_red = self.board.config.first_sector_ring_color == "red"
         self.trace: list[str] = []
         best: tuple[int, float, CameraModel, np.ndarray, np.ndarray] | None = None
-        for cam in fit_circle_poses(self._edge_pts, ellipse, K, dist, rr["double_outer"], size, camera_id):
+        for cam in fit_circle_poses(self._edge_pts, ellipse, K, dist, ring_outer, size, camera_id):
             xy, valid = cam.pixels_to_board(trans_px)
             if not valid.all():
                 continue

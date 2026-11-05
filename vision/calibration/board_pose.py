@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 import cv2
 import numpy as np
 
-from vision.board_detection.rings import BoardDetector
+from vision.board_detection.rings import BoardDetector, ring_outside_model
 from vision.calibration.intrinsics import IntrinsicsResult
 from vision.calibration.refine import EdgeAligner, RefineResult
 from vision.config import VisionConfig
@@ -63,6 +63,7 @@ def calibrate_board(
     azimuth_prior_deg: float | None = None,
     hint_px: tuple[float, float] | None = None,
     manual_points: dict[str, tuple[float, float]] | None = None,
+    assume_triple: bool = False,
 ) -> BoardCalibration:
     board = BoardGeometry(config.board)
     h, w = image.shape[:2]
@@ -88,7 +89,8 @@ def calibrate_board(
         method = "manual"
     else:
         det = BoardDetector(board, config.board_detection).detect(
-            image, K, dist, azimuth_prior_deg=azimuth_prior_deg, hint_px=hint_px, camera_id=camera_id)
+            image, K, dist, azimuth_prior_deg=azimuth_prior_deg, hint_px=hint_px, camera_id=camera_id,
+            assume_triple=assume_triple)
         detection_summary = det.summary()
         if not det.ok or det.chosen is None or det.chosen.camera is None:
             return BoardCalibration(False, reason=det.reason, detection=detection_summary)
@@ -104,6 +106,14 @@ def calibrate_board(
         return BoardCalibration(False, reason=f"refinement failed: {exc}", detection=detection_summary)
 
     grade, checks = grade_calibration(refined, config, source)
+    if ring_outside_model(image, refined.camera, board, config.board_detection):
+        # Wires coincide on the double and triple rings, so the edge checks cannot see this.
+        if method == "auto" and not assume_triple:
+            return calibrate_board(image, config, camera_id, intrinsics, azimuth_prior_deg, hint_px,
+                                   assume_triple=True)
+        return BoardCalibration(False, grade="poor", checks=checks, detection=detection_summary,
+                                reason="Siatka jest za mała: pierścień potrójny wzięty za podwójny. "
+                                       "Sprawdź, czy cały pierścień podwójny jest dobrze widoczny.")
     result = BoardCalibration(
         ok=grade != "failed", camera=refined.camera, method=method, intrinsics_source=source, grade=grade,
         metrics=refined.metrics(), derived=derived_parameters(refined.camera, board), checks=checks,

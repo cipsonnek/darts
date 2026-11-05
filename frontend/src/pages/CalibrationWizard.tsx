@@ -203,8 +203,8 @@ export default function CalibrationWizard() {
                   </>
                 ) : (
                   <>
-                    <div className="font-display text-2xl font-bold tracking-wide text-[var(--bad)] uppercase">Za mało kamer widzi tarczę</div>
-                    <div className="text-[var(--muted)]">Sprawdź światło i czy nic nie zasłania tarczy, potem spróbuj ponownie. Jeśli się nie uda — zgłoś to operatorowi.</div>
+                    <div className="font-display text-2xl font-bold tracking-wide text-[var(--bad)] uppercase">Kalibracja wyszła za słabo</div>
+                    <div className="text-[var(--muted)]">Do zapisu potrzebne są co najmniej 2 kamery z dobrą oceną. Sprawdź światło i czy nic nie zasłania tarczy, potem spróbuj ponownie. Jeśli się nie uda — zgłoś to operatorowi.</div>
                   </>
                 )}
               </div>
