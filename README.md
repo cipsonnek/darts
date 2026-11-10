@@ -29,6 +29,10 @@ powershell -ExecutionPolicy Bypass -File scripts\start.ps1
 powershell -ExecutionPolicy Bypass -File scripts\start.ps1 -Simulator
 ```
 
+Or double-click **Uruchom tarcze.bat** in the project folder (same as `start.ps1 -Lan`, and it shows the
+board's network address); **Aktualizuj i uruchom.bat** runs `git pull` first. For a desktop icon: right-click
+the file → Send to → Desktop (create shortcut).
+
 Open <http://localhost:8000>. Add `-Lan` to reach it from a phone, tablet or TV on the same
 network (`http://<this-pc-ip>:8000`); Windows may ask to allow Python through the firewall.
 
