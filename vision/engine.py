@@ -187,6 +187,13 @@ class VisionEngine:
             ctx.motion = None
             ctx.validation = None
 
+    def reset_camera(self, camera_id: str) -> None:
+        """Forget everything learned from a camera's images (calibration, references, motion
+        state): use when it now shows a different picture, e.g. another device."""
+        with self._lock:
+            if camera_id in self.cameras:
+                self.cameras[camera_id] = CameraContext(camera_id, None)
+
     def pause(self, paused: bool = True) -> None:
         self._paused = paused
 

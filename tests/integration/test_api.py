@@ -201,3 +201,32 @@ def test_service_pin_unlocks_admin_token(tmp_path) -> None:
         # a board has no operator panel
         assert c.get("/api/fleet/dashboard").status_code == 404
         assert c.post("/api/auth/login", json={"username": "a", "password": "b"}).status_code == 404
+
+
+def test_new_camera_picture_drops_its_calibration(tmp_path) -> None:
+    """After switching a camera to another device (here: turning its picture), the old pose
+    would put the board in the wrong place, so it stops being used until recalibrated."""
+    with TestClient(create_app(_settings(tmp_path))) as c:
+        for _ in range(100):
+            if all(cm["health"] and cm["health"]["frames_total"] > 3 for cm in c.get("/api/cameras").json()):
+                break
+            time.sleep(0.1)
+        for cid in ("cam1", "cam2"):
+            r = c.post(f"/api/calibration/{cid}/board", json={"method": "auto"})
+            assert r.status_code == 200 and r.json()["ok"], r.text
+            assert c.post(f"/api/calibration/{cid}/board/accept").status_code == 200
+        cams = {cm["id"]: cm for cm in c.get("/api/cameras").json()}
+        assert cams["cam2"]["calibration"]["pose"]
+        engine = c.app.state.vision.engine
+        assert engine.cameras["cam2"].model is not None
+        # Settings that do not change the picture keep the calibration.
+        r = c.patch("/api/cameras/cam2", json={"name": "Lewa", "mount": {"azimuth_deg": 125}})
+        assert r.status_code == 200 and r.json()["calibration_cleared"] is False
+        assert c.get("/api/cameras").json()[1]["calibration"]["pose"]
+        r = c.patch("/api/cameras/cam2", json={"rotate_180": True})
+        assert r.status_code == 200 and r.json()["calibration_cleared"] is True
+        cams = {cm["id"]: cm for cm in c.get("/api/cameras").json()}
+        assert not cams["cam2"]["calibration"]["pose"]
+        assert cams["cam1"]["calibration"]["pose"]
+        assert engine.cameras["cam2"].model is None and engine.cameras["cam2"].reference is None
+        assert "cam2" not in engine.calibrated_cameras

@@ -65,6 +65,18 @@ class CalibrationStore:
             self._save(data)
             return data
 
+    def mark_stale(self, camera_id: str) -> bool:
+        """The camera now delivers a different image (other device, size, rotation): its pose
+        no longer applies. Kept for the history, not used. Returns whether there was one."""
+        with self._lock:
+            data = self.load(camera_id)
+            pose = data.get("pose")
+            if pose is None or pose.get("stale"):
+                return False
+            pose["stale"] = True
+            self._save(data)
+            return True
+
     def clear(self, camera_id: str) -> None:
         with self._lock:
             data = self.load(camera_id)

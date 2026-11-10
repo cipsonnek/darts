@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { CameraView } from "@/components/camera/CameraView";
 import { Badge, Button, Card, ErrorNote, Field, inputCls, Modal, PageHeader, Tabs, Toggle } from "@/components/ui";
 import { useAction, useApi } from "@/hooks/useApi";
@@ -34,6 +35,15 @@ export default function Cameras() {
         </div>
       </div>
       <ErrorNote error={error ?? doProbe.error} />
+      {cams && cams.some((c) => c.enabled && !c.calibration.pose) && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--warn)]/50 bg-[color-mix(in_oklab,var(--warn)_12%,transparent)] px-4 py-3">
+          <span className="flex-1 font-semibold text-[var(--warn)]">
+            Bez kalibracji: {cams.filter((c) => c.enabled && !c.calibration.pose).map((c) => c.name).join(", ")}.
+            Po zmianie numeru urządzenia, rozdzielczości lub obrotu kamerę trzeba skalibrować ponownie — do tego czasu nie liczy rzutów.
+          </span>
+          <Link to="/calibration"><Button size="sm" variant="primary">Kalibruj</Button></Link>
+        </div>
+      )}
       <div className="grid gap-4 xl:grid-cols-3">
         {cams?.map((c) => {
           const h = live.find((x) => x.camera_id === c.id) ?? c.health;
@@ -56,7 +66,9 @@ export default function Cameras() {
         <div className="flex flex-col gap-2 text-sm">
           {probe?.map((p) => (
             <div key={p.index} className="rounded-lg border border-[var(--border)] p-2">
-              <b>Urządzenie {p.index}</b> — {p.width}×{p.height} · {p.backend} · klatek: {p.frames}
+              <b>Urządzenie {p.index}</b>{" "}
+              {p.in_use_by ? <>— używa go <b>{p.in_use_by}</b> {p.in_use_connected ? <Badge tone="good">obraz OK</Badge> : <Badge tone="bad">brak obrazu</Badge>}</>
+                : <>— {p.width}×{p.height} · {p.backend} · klatek: {p.frames} <Badge tone="info">wolne</Badge></>}
               {p.likely_virtual_or_blank && <Badge tone="warn" className="ml-2">puste/wirtualne?</Badge>}
             </div>
           ))}

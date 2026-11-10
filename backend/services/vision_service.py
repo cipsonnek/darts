@@ -183,8 +183,18 @@ class VisionService:
         assert self.manager is not None
         self.manager.reconfigure(new)
         save_runtime_overrides(self.settings, {"vision": {"cameras": [c.model_dump() for c in self.cfg.cameras]}})
-        log.info("camera reconfigured", extra={"camera": camera_id, "patch": patch})
-        return new.model_dump()
+        # Another device, size or rotation is another picture: the old calibration and the
+        # engine's references for this camera would put the board in the wrong place.
+        new_picture = (cur.source != new.source or (cur.width, cur.height, cur.rotate_180)
+                       != (new.width, new.height, new.rotate_180))
+        if new_picture:
+            had_pose = self.store.mark_stale(camera_id)
+            if self.engine is not None:
+                self.engine.reset_camera(camera_id)
+            if had_pose:
+                self.hub.publish("calibration", "pose_cleared", {"camera_id": camera_id})
+        log.info("camera reconfigured", extra={"camera": camera_id, "patch": patch, "new_picture": new_picture})
+        return {**new.model_dump(), "calibration_cleared": new_picture}
 
     def apply_controls(self, camera_id: str, controls: dict[str, Any]) -> dict:
         assert self.manager is not None
@@ -203,9 +213,20 @@ class VisionService:
         save_runtime_overrides(self.settings, {"vision": {"cameras": [c.model_dump() for c in self.cfg.cameras]}})
 
     def probe(self) -> list[dict]:
+        """Capture devices by number. Devices this board already uses cannot be opened a
+        second time, so they are listed from the configuration with the camera using them."""
         if self.simulator:
             return []
-        return probe_devices(8)
+        found = {e["index"]: e for e in probe_devices(8)}
+        health = {h["camera_id"]: h for h in self.manager.health()} if self.manager else {}
+        for c in self.cfg.cameras:
+            dev = c.source.device
+            if c.source.type != "opencv" or not c.enabled or dev is None or not str(dev).isdigit():
+                continue
+            entry = found.setdefault(int(dev), {"index": int(dev), "opened": False, "frames": 0})
+            entry["in_use_by"] = c.name or c.id
+            entry["in_use_connected"] = bool((health.get(c.id) or {}).get("connected"))
+        return sorted(found.values(), key=lambda e: e["index"])
 
     # ------------------------------------------------------------------ images
     def render_view(self, camera_id: str, width: int | None = None, layers: set[str] | None = None,
@@ -302,8 +323,23 @@ class VisionService:
         cam_cfg = self.camera(camera_id)
         prior = azimuth if azimuth is not None else cam_cfg.mount.azimuth_deg
         pts = {k: (float(v[0]), float(v[1])) for k, v in (points or {}).items()} if method == "manual" else None
-        res = calibrate_board(img, self.cfg, camera_id, intrinsics=intr, azimuth_prior_deg=prior,
-                              hint_px=tuple(hint) if hint else None, manual_points=pts)
+        # Automatic detection now and then misreads one frame (noise, flicker): a few fresh
+        # frames are cheap compared with sending staff back to press the button again.
+        rank = {"good": 2, "fair": 1}
+        res = None
+        for attempt in range(1 if pts else 3):
+            if attempt:
+                time.sleep(0.4)
+                img = self.averaged_frame(camera_id)
+                if img is None:
+                    break
+            r = calibrate_board(img, self.cfg, camera_id, intrinsics=intr, azimuth_prior_deg=prior,
+                                hint_px=tuple(hint) if hint else None, manual_points=pts)
+            if res is None or (r.ok, rank.get(r.grade, 0)) > (res.ok, rank.get(res.grade, 0)):
+                res = r
+            if r.ok and r.grade in rank:
+                break
+        assert res is not None
         if res.ok:
             self._pending_pose[camera_id] = res
         self.hub.publish("calibration", "board_detection", {"camera_id": camera_id, **res.to_dict()})

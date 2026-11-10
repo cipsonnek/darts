@@ -52,6 +52,10 @@ export default function CalibrationWizard() {
   const running = Object.values(results).some((r) => r.state === "running" || r.state === "waiting");
   const good = enabled.filter((c) => results[c.id]?.ok && results[c.id]?.grade !== "poor");
   const canSave = !running && good.length >= 2;
+  // Found but graded weak: savable on purpose, after looking at the grids.
+  const found = enabled.filter((c) => results[c.id]?.ok);
+  const canForce = !running && !canSave && found.length >= 2;
+  const [saved, setSaved] = useState(0);
 
   async function calibrate() {
     setError(null);
@@ -70,12 +74,13 @@ export default function CalibrationWizard() {
     }
   }
 
-  async function save() {
+  async function save(which: CameraInfo[]) {
     setSaving(true);
     setError(null);
     try {
-      for (const c of good) await api.post(`/api/calibration/${c.id}/board/accept`);
-      for (const c of enabled) if (results[c.id]?.state === "done" && !good.includes(c)) {
+      for (const c of which) await api.post(`/api/calibration/${c.id}/board/accept`);
+      setSaved(which.length);
+      for (const c of enabled) if (results[c.id]?.state === "done" && !which.includes(c)) {
         await api.post(`/api/calibration/${c.id}/board/discard`).catch(() => {});
       }
       reload();
@@ -96,7 +101,7 @@ export default function CalibrationWizard() {
           <CircleCheck size={64} />
         </div>
         <h1 className="font-display text-5xl font-extrabold tracking-wide uppercase">Gotowe!</h1>
-        <p className="text-lg text-[var(--muted)]">Kalibracja zapisana ({good.length} z {enabled.length} kamer). Tarcza liczy punkty.</p>
+        <p className="text-lg text-[var(--muted)]">Kalibracja zapisana ({saved} z {enabled.length} kamer). Tarcza liczy punkty.</p>
         <Button size="xl" variant="primary" onClick={() => nav("/")}><Target size={28} /> Wróć do gry</Button>
       </div>
     );
@@ -204,12 +209,21 @@ export default function CalibrationWizard() {
                 ) : (
                   <>
                     <div className="font-display text-2xl font-bold tracking-wide text-[var(--bad)] uppercase">Kalibracja wyszła za słabo</div>
-                    <div className="text-[var(--muted)]">Do zapisu potrzebne są co najmniej 2 kamery z dobrą oceną. Sprawdź światło i czy nic nie zasłania tarczy, potem spróbuj ponownie. Jeśli się nie uda — zgłoś to operatorowi.</div>
+                    <div className="text-[var(--muted)]">
+                      Do zapisu potrzebne są co najmniej 2 kamery z dobrą oceną. Sprawdź światło i czy nic nie zasłania tarczy, potem spróbuj ponownie.
+                      {canForce && " Jeśli na podglądach kolorowe okręgi leżą dokładnie na drutach tarczy, możesz zapisać mimo słabej oceny — potem sprawdź wyniki kilkoma rzutami."}
+                    </div>
                   </>
                 )}
               </div>
               <Button size="lg" onClick={calibrate}><RefreshCw size={18} /> Spróbuj ponownie</Button>
-              {canSave && <Button size="xl" variant="good" disabled={saving} onClick={save}>{saving ? <Spinner /> : <CircleCheck size={26} />} Zapisz</Button>}
+              {canSave && <Button size="xl" variant="good" disabled={saving} onClick={() => save(good)}>{saving ? <Spinner /> : <CircleCheck size={26} />} Zapisz</Button>}
+              {canForce && (
+                <Button size="lg" variant="danger" disabled={saving}
+                  onClick={() => window.confirm("Zapisać mimo słabej oceny? Zrób to tylko, jeśli okręgi leżą na drutach tarczy.") && save(found)}>
+                  {saving ? <Spinner /> : <CircleCheck size={18} />} Zapisz mimo to
+                </Button>
+              )}
             </div>
           )}
         </div>
