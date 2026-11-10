@@ -83,6 +83,10 @@ class CameraConfig(BaseModel):
     exposure: float | None = None
     gain: float | None = None
     white_balance: float | None = None
+    # Autofocus hunting changes the picture with nobody near the board (false "motion" and
+    # "obstructed"); off keeps the focus where it is. focus: fixed value, camera-specific.
+    autofocus: bool = False
+    focus: float | None = None
     rotate_180: bool = False
     mount: CameraMountConfig = Field(default_factory=CameraMountConfig)
 

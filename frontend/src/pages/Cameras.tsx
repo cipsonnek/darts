@@ -110,14 +110,14 @@ function HealthTable({ h, calibrated, grade }: { h: CameraHealth | null | undefi
 function CameraEditor({ cam, onClose }: { cam: CameraInfo; onClose: () => void }) {
   const c = cam.config;
   const [form, setForm] = useState({
-    name: c.name, enabled: c.enabled, width: c.width, height: c.height, fps: c.fps, auto_exposure: c.auto_exposure,
+    name: c.name, enabled: c.enabled, width: c.width, height: c.height, fps: c.fps, auto_exposure: c.auto_exposure, autofocus: c.autofocus ?? false,
     exposure: c.exposure ?? "", gain: c.gain ?? "", device: c.source.device ?? "", url: c.source.url ?? "",
     type: c.source.type, azimuth: c.mount.azimuth_deg ?? "", description: c.mount.description,
   });
   const save = useAction(async () => {
     await api.patch(`/api/cameras/${cam.id}`, {
       name: form.name, enabled: form.enabled, width: Number(form.width), height: Number(form.height), fps: Number(form.fps),
-      auto_exposure: form.auto_exposure, exposure: form.exposure === "" ? null : Number(form.exposure),
+      auto_exposure: form.auto_exposure, autofocus: form.autofocus, exposure: form.exposure === "" ? null : Number(form.exposure),
       gain: form.gain === "" ? null : Number(form.gain),
       ...(cam.synthetic ? {} : { source: { type: form.type, device: form.type === "opencv" ? (form.device === "" ? null : Number(form.device)) : null, url: form.type === "rtsp" ? form.url : null } }),
       mount: { azimuth_deg: form.azimuth === "" ? null : Number(form.azimuth), description: form.description },
@@ -150,6 +150,7 @@ function CameraEditor({ cam, onClose }: { cam: CameraInfo; onClose: () => void }
         <Field label="Wysokość"><input className={inputCls} type="number" value={form.height} onChange={(e) => set("height", e.target.value)} /></Field>
         <Field label="FPS"><input className={inputCls} type="number" value={form.fps} onChange={(e) => set("fps", e.target.value)} /></Field>
         <Field label="Auto-ekspozycja" hint="Zalecane wyłączenie: zmiany ekspozycji wyglądają jak ruch"><Toggle checked={form.auto_exposure} onChange={(v) => set("auto_exposure", v)} /></Field>
+        <Field label="Autofokus" hint="Zalecane wyłączenie: szukanie ostrości wygląda jak ruch i zasłonięcie tarczy"><Toggle checked={form.autofocus} onChange={(v) => set("autofocus", v)} /></Field>
         <Field label="Ekspozycja"><input className={inputCls} type="number" value={form.exposure} onChange={(e) => set("exposure", e.target.value)} /></Field>
         <Field label="Wzmocnienie"><input className={inputCls} type="number" value={form.gain} onChange={(e) => set("gain", e.target.value)} /></Field>
         <Field label="Pozycja (kąt jak na zegarze, °)" hint="0 = góra (20), 90 = prawo, 180 = dół">

@@ -42,12 +42,21 @@ def draw_board(img: np.ndarray, cam: CameraModel, board: BoardGeometry, scale: f
     c = cam.project(np.zeros((1, 3)))[0] * scale
     cv2.drawMarker(img, (int(c[0]), int(c[1])), _RED, cv2.MARKER_CROSS, 14, 1, cv2.LINE_AA)
     if labels:
+        # Readable on a small preview: they are how staff check the board's rotation (the
+        # wires fit just as well turned by two sectors). The 20 stands out.
         r = (board.ring_radii["double_outer"] + board.config.board_radius_mm) / 2
+        base = max(0.45, img.shape[1] / 1280 * 1.1)
         for i, s in enumerate(board.sector_order):
             x, y = board.from_polar(r, i * board.sector_angle_deg)
+            if not cam.in_front(np.array([[x, y, 0.0]]))[0]:
+                continue
             p = cam.project(np.array([[x, y, 0.0]]))[0] * scale
-            cv2.putText(img, str(s), (int(p[0]) - 7, int(p[1]) + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.45, _YELLOW, 1,
-                        cv2.LINE_AA)
+            fs = base * (1.7 if i == 0 else 1.0)
+            th = max(1, round(fs * 2.2))
+            (tw, tht), _ = cv2.getTextSize(str(s), cv2.FONT_HERSHEY_SIMPLEX, fs, th)
+            org = (int(p[0] - tw / 2), int(p[1] + tht / 2))
+            cv2.putText(img, str(s), org, cv2.FONT_HERSHEY_SIMPLEX, fs, (0, 0, 0), th + 3, cv2.LINE_AA)
+            cv2.putText(img, str(s), org, cv2.FONT_HERSHEY_SIMPLEX, fs, _YELLOW, th, cv2.LINE_AA)
 
 
 def draw_debug(

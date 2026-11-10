@@ -111,6 +111,10 @@ function BoardStep({ cam, st, onChange }: { cam: CameraInfo; st: any; onChange: 
     setResult(r);
     setPreview((p) => p + 1);
   });
+  const turn = useAction(async (steps: number) => {
+    setResult(await api.post<any>(`/api/calibration/${cam.id}/board/rotate?steps=${steps}`));
+    setPreview((p) => p + 1);
+  });
   const accept = useAction(async () => {
     await api.post(`/api/calibration/${cam.id}/board/accept`);
     setResult(null);
@@ -188,7 +192,13 @@ function BoardStep({ cam, st, onChange }: { cam: CameraInfo; st: any; onChange: 
             ) : (
               <div className="flex flex-col gap-3">
                 <img src={`/api/calibration/${cam.id}/preview.jpg?width=900&_=${preview}`} className="w-full rounded-lg" alt="podgląd kalibracji" />
-                <div className="text-xs text-[var(--muted)]">Sprawdź, czy zielone/turkusowe okręgi i linie sektorów leżą dokładnie na drutach tarczy.</div>
+                <div className="text-xs text-[var(--muted)]">Sprawdź, czy zielone/turkusowe okręgi i linie sektorów leżą dokładnie na drutach tarczy, a żółte liczby na liczbach tarczy.</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" onClick={() => turn.run(-1)} disabled={turn.busy}>⟲ Obróć o 36°</Button>
+                  <Button size="sm" onClick={() => turn.run(1)} disabled={turn.busy}>Obróć o 36° ⟳</Button>
+                  <span className="text-xs text-[var(--muted)]">gdy liczby są przesunięte (druty pasują przy każdym obrocie)</span>
+                </div>
+                <ErrorNote error={turn.error} />
                 <div className="grid grid-cols-1 gap-1">
                   {result.checks.map((c: any) => (
                     <Check key={c.name} ok={c.status === "good" ? true : c.status === "fair" ? null : false} label={c.name} detail={`${c.value} ${c.unit}`} />

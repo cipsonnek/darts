@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from vision.board_detection.rings import ring_outside_model
-from vision.calibration.board_pose import calibrate_board, landmarks
+from vision.calibration.board_pose import calibrate_board, landmarks, rotate_about_board
 from vision.calibration.intrinsics import IntrinsicsCalibrator, IntrinsicsResult, make_charuco_board, render_charuco
 from vision.calibration.refine import EdgeAligner
 from vision.calibration.validation import board_shift_mm, validate_pose
@@ -188,3 +188,21 @@ def test_model_on_the_triple_ring_is_noticed(world, sim_rig, board) -> None:
     assert not ring_outside_model(img, cam, board, cfg.board_detection)
     far = CameraModel(cam.K, cam.dist, cam.R, cam.t * (170.0 / 103.0), cam.image_size, "cam1")
     assert ring_outside_model(img, far, board, cfg.board_detection)
+
+
+def test_wrong_mounting_angle_is_fixed_by_turning_the_result(world, sim_rig, board) -> None:
+    """Wires and colours repeat every 36°, so a mounting angle off by about that much yields a
+    pose that fits the image perfectly but is turned. Turning it back by one step (36°) gives
+    the true pose; the camera's position then also reads correctly."""
+    cam = sim_rig["cam1"]
+    img = world.render("cam1", 0.0)
+    true_az = math.degrees(math.atan2(cam.center[0], cam.center[1])) % 360
+    res = calibrate_board(img, VisionConfig(), "cam1", intrinsics=_intr(cam), azimuth_prior_deg=(true_az + 36) % 360)
+    assert res.ok and res.grade in ("good", "fair")  # the checks cannot see it
+    assert board_shift_mm(cam, res.camera) > 50
+    fixed = rotate_about_board(res.camera, 36.0)
+    assert board_shift_mm(cam, fixed) < 0.5
+    az = math.degrees(math.atan2(fixed.center[0], fixed.center[1])) % 360
+    assert abs((az - true_az + 180) % 360 - 180) < 2
+    back = rotate_about_board(fixed, -36.0)
+    assert np.allclose(back.R, res.camera.R) and np.allclose(back.t, res.camera.t)

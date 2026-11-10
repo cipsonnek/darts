@@ -77,6 +77,7 @@ export interface CameraConfig {
   height: number;
   fps: number;
   auto_exposure: boolean;
+  autofocus?: boolean;
   exposure: number | null;
   gain: number | null;
   white_balance: number | null;

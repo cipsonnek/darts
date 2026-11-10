@@ -1,11 +1,12 @@
 import clsx from "clsx";
-import { CircleCheck, CircleX, Lightbulb, PersonStanding, RefreshCw, Target, TriangleAlert, Wrench } from "lucide-react";
+import { CircleCheck, CircleX, Lightbulb, PersonStanding, RefreshCw, RotateCcw, RotateCw, Target, TriangleAlert, Wrench } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { CameraView } from "@/components/camera/CameraView";
-import { Badge, Button, ErrorNote, Spinner } from "@/components/ui";
+import { Badge, Button, ErrorNote, Modal, Spinner } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { api } from "@/lib/api";
+import { DEFAULT_BOARD } from "@/lib/board";
 import type { CameraInfo } from "@/lib/types";
 import { useLive } from "@/store/live";
 
@@ -20,6 +21,7 @@ interface Result {
   grade?: string;
   reason?: string;
   n?: number;
+  az?: number;
 }
 
 const GRADE_TEXT: Record<string, { label: string; tone: "good" | "warn" | "bad" }> = {
@@ -33,6 +35,12 @@ const PREP = [
   { icon: Lightbulb, text: "Zapal światło nad tarczą (tak jak podczas gry)." },
   { icon: PersonStanding, text: "Odsuń się — nic nie może zasłaniać tarczy." },
 ];
+
+/** Number of the sector a camera at this clock angle stands next to. */
+function sectorAt(az: number): number {
+  const b = DEFAULT_BOARD;
+  return b.sector_order[Math.round((((az % 360) + 360) % 360) / b.sector_angle_deg) % b.sector_order.length];
+}
 
 /** Calibration for venue staff: get the board ready, press one button, check, save. The
  *  technical page (lens, manual points) stays under Obsługa → Kalibracja zaawansowana. */
@@ -67,10 +75,26 @@ export default function CalibrationWizard() {
       setResults((r) => ({ ...r, [c.id]: { state: "running" } }));
       try {
         const r = await api.post<any>(`/api/calibration/${c.id}/board`, { method: "auto", azimuth_deg: c.config.mount.azimuth_deg ?? null });
-        setResults((x) => ({ ...x, [c.id]: { state: "done", ok: r.ok, grade: r.grade, reason: r.reason, n: Date.now() } }));
+        setResults((x) => ({ ...x, [c.id]: { state: "done", ok: r.ok, grade: r.grade, reason: r.reason, n: Date.now(),
+          az: r.derived?.camera_azimuth_deg } }));
       } catch (e) {
         setResults((x) => ({ ...x, [c.id]: { state: "error", ok: false, reason: e instanceof Error ? e.message : String(e) } }));
       }
+    }
+  }
+
+  const [turning, setTurning] = useState(false);
+  const [zoom, setZoom] = useState<{ id: string; name: string } | null>(null);
+  async function rotate(c: CameraInfo, steps: number) {
+    setTurning(true);
+    setError(null);
+    try {
+      const r = await api.post<any>(`/api/calibration/${c.id}/board/rotate?steps=${steps}`);
+      setResults((x) => ({ ...x, [c.id]: { ...x[c.id], n: Date.now(), az: r.derived?.camera_azimuth_deg } }));
+    } catch (e) {
+      setError(e);
+    } finally {
+      setTurning(false);
     }
   }
 
@@ -180,7 +204,9 @@ export default function CalibrationWizard() {
                   </div>
                   <div className="relative aspect-video bg-[var(--surface-2)]">
                     {r?.state === "done" && r.ok ? (
-                      <img src={`/api/calibration/${c.id}/preview.jpg?width=900&_=${r.n}`} className="h-full w-full object-cover" alt={`Kalibracja ${c.name}`} />
+                      <button className="h-full w-full" onClick={() => setZoom({ id: c.id, name: c.name })} title="Powiększ">
+                        <img src={`/api/calibration/${c.id}/preview.jpg?width=900&_=${r.n}`} className="h-full w-full object-cover" alt={`Kalibracja ${c.name}`} />
+                      </button>
                     ) : r?.state === "done" || r?.state === "error" ? (
                       <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-sm text-[var(--bad)]">
                         <CircleX size={36} />
@@ -191,7 +217,14 @@ export default function CalibrationWizard() {
                     )}
                   </div>
                   {r?.state === "done" && r.ok && (
-                    <div className="px-4 py-2 text-xs text-[var(--muted)]">Kolorowe okręgi i linie powinny leżeć na drutach tarczy.</div>
+                    <div className="flex items-center gap-2 px-3 py-2">
+                      <Button onClick={() => rotate(c, -1)} disabled={turning} aria-label="Obróć siatkę w lewo"><RotateCcw size={18} /></Button>
+                      <div className="min-w-0 flex-1 text-center text-xs text-[var(--muted)]">
+                        Okręgi na drutach, a żółta <b className="text-[var(--text)]">20</b> na prawdziwej 20.
+                        {r.az != null && <> Kamera stoi przy <b className="text-[var(--text)]">{sectorAt(r.az)}</b>.</>}
+                      </div>
+                      <Button onClick={() => rotate(c, 1)} disabled={turning} aria-label="Obróć siatkę w prawo"><RotateCw size={18} /></Button>
+                    </div>
                   )}
                 </div>
               );
@@ -229,6 +262,16 @@ export default function CalibrationWizard() {
         </div>
       )}
 
+      {zoom && (
+        <Modal open wide onClose={() => setZoom(null)} title={zoom.name}>
+          <img src={`/api/calibration/${zoom.id}/preview.jpg?width=1600&_=${results[zoom.id]?.n ?? 0}`} className="w-full rounded-xl" alt={`Kalibracja ${zoom.name}`} />
+          <div className="mt-3 flex items-center justify-center gap-3">
+            <Button onClick={() => { const c = enabled.find((x) => x.id === zoom.id); if (c) rotate(c, -1); }} disabled={turning}><RotateCcw size={18} /> Obróć</Button>
+            <span className="text-sm text-[var(--muted)]">Żółta <b className="text-[var(--text)]">20</b> ma leżeć na prawdziwej 20.</span>
+            <Button onClick={() => { const c = enabled.find((x) => x.id === zoom.id); if (c) rotate(c, 1); }} disabled={turning}>Obróć <RotateCw size={18} /></Button>
+          </div>
+        </Modal>
+      )}
       <Link to="/service/calibration" className="flex w-fit items-center gap-2 text-sm text-[var(--muted)] hover:text-[var(--text)]">
         <Wrench size={14} /> Kalibracja zaawansowana (dla serwisanta): obiektyw, punkty ręcznie
       </Link>

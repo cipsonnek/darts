@@ -153,6 +153,17 @@ def _status(v: float, good: float, fair: float, lower_is_better: bool) -> str:
     return "good" if v >= good else "fair" if v >= fair else "poor"
 
 
+def rotate_about_board(cam: CameraModel, degrees: float) -> CameraModel:
+    """The same camera with the board turned about its centre (clockwise as seen by the
+    player). Wires repeat every sector and colours every two, so a pose turned by a multiple
+    of two sectors fits the image just as well: only the printed numbers tell them apart."""
+    t = math.radians(degrees)
+    c, s = math.cos(t), math.sin(t)
+    # Board θ runs clockwise from +Y: a board point at θ moves to θ + degrees.
+    rz = np.array([[c, s, 0.0], [-s, c, 0.0], [0.0, 0.0, 1.0]])
+    return CameraModel(cam.K.copy(), cam.dist.copy(), cam.R @ rz, cam.t.copy(), cam.image_size, cam.camera_id)
+
+
 def derived_parameters(cam: CameraModel, board: BoardGeometry) -> dict:
     """Human-meaningful quantities: where the board is in the image and how the camera sits."""
     center_px = cam.project(np.zeros((1, 3)))[0]

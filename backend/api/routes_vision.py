@@ -129,6 +129,16 @@ def preview(camera_id: str, width: int | None = Query(None, ge=64, le=4096), vis
     return Response(data, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
 
+@router.post("/calibration/{camera_id}/board/rotate", dependencies=[Depends(deps.require_admin)])
+def rotate_board(camera_id: str, steps: int = Query(..., ge=-9, le=9), vision=Depends(deps.vision)) -> dict:
+    """Turn the pending calibration by steps × 36° (when its numbers miss the printed ones)."""
+    _cam(vision, camera_id)
+    try:
+        return vision.rotate_pending(camera_id, steps)
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
 @router.post("/calibration/{camera_id}/board/accept", dependencies=[Depends(deps.require_admin)])
 def accept_board(camera_id: str, vision=Depends(deps.vision), games=Depends(deps.games)) -> dict:
     _cam(vision, camera_id)

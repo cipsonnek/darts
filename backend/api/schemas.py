@@ -99,6 +99,8 @@ class CameraPatch(BaseModel):
     exposure: float | None = None
     gain: float | None = None
     white_balance: float | None = None
+    autofocus: bool | None = None
+    focus: float | None = None
     rotate_180: bool | None = None
     source: dict[str, Any] | None = None
     mount: dict[str, Any] | None = None

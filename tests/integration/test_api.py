@@ -230,3 +230,23 @@ def test_new_camera_picture_drops_its_calibration(tmp_path) -> None:
         assert cams["cam1"]["calibration"]["pose"]
         assert engine.cameras["cam2"].model is None and engine.cameras["cam2"].reference is None
         assert "cam2" not in engine.calibrated_cameras
+
+
+def test_turning_a_calibration_and_remembering_the_angle(tmp_path) -> None:
+    with TestClient(create_app(_settings(tmp_path))) as c:
+        for _ in range(100):
+            if all(cm["health"] and cm["health"]["frames_total"] > 3 for cm in c.get("/api/cameras").json()):
+                break
+            time.sleep(0.1)
+        assert c.post("/api/calibration/cam2/board/rotate?steps=1").status_code == 404  # nothing pending
+        r = c.post("/api/calibration/cam2/board", json={"method": "auto"}).json()
+        assert r["ok"], r
+        az0 = r["derived"]["camera_azimuth_deg"]
+        turned = c.post("/api/calibration/cam2/board/rotate?steps=1").json()
+        diff = (turned["derived"]["camera_azimuth_deg"] - az0) % 360
+        assert min(abs(diff - 36), abs(diff - 324)) < 1
+        back = c.post("/api/calibration/cam2/board/rotate?steps=-1").json()
+        assert abs((back["derived"]["camera_azimuth_deg"] - az0 + 180) % 360 - 180) < 0.01
+        assert c.post("/api/calibration/cam2/board/accept").status_code == 200
+        cam2 = next(cm for cm in c.get("/api/cameras").json() if cm["id"] == "cam2")
+        assert cam2["config"]["mount"]["azimuth_deg"] == round(az0) % 360

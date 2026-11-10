@@ -12,6 +12,18 @@
       "port": 8000
     },
     {
+      "name": "dartsense-simulator-lan",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "-m",
+        "backend",
+        "--simulator",
+        "--host",
+        "0.0.0.0"
+      ],
+      "port": 8000
+    },
+    {
       "name": "dartsense-central",
       "runtimeExecutable": ".venv/Scripts/python.exe",
       "runtimeArgs": [
