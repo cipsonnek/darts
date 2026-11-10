@@ -381,8 +381,10 @@ class VisionEngine:
                 "dart_ids": [d.dart_id for d in gone], "board_clear": clear,
                 "remaining": [d.dart_id for d in self.board_state.darts]}))
 
-        # 3. New darts.
-        new_events = self._detect_new(frames, cams, changes, ts)
+        # 3. New darts. Not in the same still scene as a takeout: the player has to step back
+        # before throwing, so that is a later scene. Here the spots the darts left are what
+        # changed, and against an empty-board image taken in other light they read as new darts.
+        new_events = [] if removed else self._detect_new(frames, cams, changes, ts)
         events.extend(new_events)
 
         # 4. Nothing recognised but the scene changed.

@@ -55,6 +55,25 @@ def test_hand_passing_is_not_a_dart() -> None:
     assert m["false_positives"] == 0 and m["duplicates"] == 0
 
 
+def test_takeout_after_a_light_change_leaves_no_phantom_darts() -> None:
+    """Under light other than the empty-board image's, the spots pulled darts leave read as
+    "added" pixels. They must not become new darts in the takeout scene: those stayed in
+    memory, so the next takeout was never complete and the game waited."""
+    r = _runner()
+    steps = [ScenarioStep(1.5, "throw", {"target": (0.0, 103.0)}),
+             ScenarioStep(2.7, "throw", {"target": (-60.0, 70.0)}),
+             ScenarioStep(3.9, "throw", {"target": (80.0, -40.0)}),
+             ScenarioStep(5.0, "lighting", {"preset": "uneven"}),
+             ScenarioStep(8.0, "takeout", {})]
+    res = r.run(Scenario("takeout-light", steps, 12.0))
+    removed = [e for e in res.events if e.type == EventType.DARTS_REMOVED]
+    assert removed and removed[-1].data["board_clear"]
+    takeout_t = removed[-1].timestamp
+    assert not [e for e in res.events if e.type == EventType.DART and e.timestamp >= takeout_t]
+    assert EventType.BOARD_CLEAR in [e.type for e in res.events]
+    assert len(r.engine.board_state) == 0
+
+
 def test_lighting_change_does_not_rescore_existing_dart() -> None:
     r = _runner(7)
     steps = [ScenarioStep(1.5, "throw", {"target": (0.0, 140.0)}),

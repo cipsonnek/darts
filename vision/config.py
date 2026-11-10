@@ -126,7 +126,10 @@ class CalibrationConfig(BaseModel):
     good_edge_rms_px: float = 0.8
     fair_edge_rms_px: float = 1.6
     good_inlier_fraction: float = 0.8
-    fair_inlier_fraction: float = 0.6
+    # On the first real board (thin wires, wide lens, ring light) poses whose grid sat right
+    # on the wires confirmed 53-82 % of the model edges; the renderer confirms nearly all.
+    # 0.6 graded those correct poses "poor". Below 0.35 the pose is rejected outright.
+    fair_inlier_fraction: float = 0.45
     good_pose_sigma_mm: float = 0.3
     fair_pose_sigma_mm: float = 1.0
 
@@ -247,7 +250,9 @@ class ValidationConfig(BaseModel):
     enabled: bool = True
     interval_s: float = 30.0
     edge_tolerance_px: float = 2.0
-    min_alignment: float = 0.55  # fraction of model edge samples with nearby image edges
+    # Fraction of model edge samples with nearby image edges. A correct pose on a real board
+    # confirms about half of them (see fair_inlier_fraction), so 0.55 reported movement there.
+    min_alignment: float = 0.40
     max_shift_mm: float = 1.5
 
 

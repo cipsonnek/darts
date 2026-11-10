@@ -52,7 +52,8 @@ def validate_pose(image: np.ndarray, camera: CameraModel, aligner: EdgeAligner, 
     confirmed = m.valid & (np.abs(m.offsets) <= cfg.edge_tolerance_px)
     alignment = float(confirmed.sum() / visible)
     refit = aligner.refine(image, camera, schedule=(6, 4, 3, 2.5, 2, 2), ignore_mask=ignore_mask, lab=lin)
-    shift = board_shift_mm(camera, refit.camera) if refit.inlier_fraction > 0.5 else float("inf")
+    # 0.35: the same floor below which a calibration itself is rejected.
+    shift = board_shift_mm(camera, refit.camera) if refit.inlier_fraction > 0.35 else float("inf")
     if alignment >= cfg.min_alignment and shift <= cfg.max_shift_mm:
         status, msg = "ok", "calibration consistent with the current image"
     elif shift <= 3 * cfg.max_shift_mm and alignment >= cfg.min_alignment * 0.7:
