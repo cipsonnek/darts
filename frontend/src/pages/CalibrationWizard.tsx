@@ -1,9 +1,9 @@
 import clsx from "clsx";
-import { CircleCheck, CircleX, Lightbulb, PersonStanding, RefreshCw, RotateCcw, RotateCw, Target, TriangleAlert, Wrench } from "lucide-react";
+import { CircleCheck, CircleX, Lightbulb, MapPin, PersonStanding, RefreshCw, RotateCcw, RotateCw, Target, TriangleAlert, Wrench } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { CameraView } from "@/components/camera/CameraView";
-import { Badge, Button, ErrorNote, Modal, Spinner } from "@/components/ui";
+import { Badge, Button, ErrorNote, inputCls, Modal, Spinner } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { api } from "@/lib/api";
 import { DEFAULT_BOARD } from "@/lib/board";
@@ -34,6 +34,7 @@ const PREP = [
   { icon: Target, text: "Wyjmij wszystkie lotki z tarczy." },
   { icon: Lightbulb, text: "Zapal światło nad tarczą (tak jak podczas gry)." },
   { icon: PersonStanding, text: "Odsuń się — nic nie może zasłaniać tarczy." },
+  { icon: MapPin, text: "Przy każdej kamerze wybierz liczbę tarczy, przy której stoi (obok podglądu)." },
 ];
 
 /** Number of the sector a camera at this clock angle stands next to. */
@@ -46,7 +47,7 @@ function sectorAt(az: number): number {
  *  technical page (lens, manual points) stays under Obsługa → Kalibracja zaawansowana. */
 export default function CalibrationWizard() {
   const nav = useNavigate();
-  const { data: cams } = useApi<CameraInfo[]>("/api/cameras");
+  const { data: cams, reload: reloadCams } = useApi<CameraInfo[]>("/api/cameras");
   const { data: status, reload } = useApi<CalStatus>("/api/calibration", 5000);
   const health = useLive((s) => s.cameras);
   const [phase, setPhase] = useState<"prep" | "run" | "saved">("prep");
@@ -84,6 +85,19 @@ export default function CalibrationWizard() {
   }
 
   const [turning, setTurning] = useState(false);
+  // Where each camera stands decides which way the grid is turned: wires and colours repeat
+  // every 36°, so only this tells the right rotation apart. Staff read it off the board.
+  async function setStand(c: CameraInfo, number: number) {
+    const i = DEFAULT_BOARD.sector_order.indexOf(number);
+    try {
+      await api.patch(`/api/cameras/${c.id}`, { mount: { azimuth_deg: i * DEFAULT_BOARD.sector_angle_deg } });
+      reloadCams();
+    } catch (e) {
+      setError(e);
+    }
+  }
+  const stands = enabled.map((c) => c.config.mount.azimuth_deg).filter((a): a is number => a != null).map(sectorAt);
+  const sameStand = new Set(stands).size < stands.length;
   const [zoom, setZoom] = useState<{ id: string; name: string } | null>(null);
   async function rotate(c: CameraInfo, steps: number) {
     setTurning(true);
@@ -177,10 +191,23 @@ export default function CalibrationWizard() {
                   <span className="font-semibold">{c.name}</span>
                   {connected(c.id) ? <Badge tone="good">działa</Badge> : <Badge tone="bad">brak obrazu</Badge>}
                 </div>
-                <div className="px-2 pb-2"><CameraView cameraId={c.id} width={480} fps={4} /></div>
+                <div className="px-2"><CameraView cameraId={c.id} width={480} fps={4} /></div>
+                <label className="flex items-center gap-2 px-4 py-3 text-sm">
+                  <span className="flex-1 text-[var(--muted)]">Stoi przy liczbie<br /><span className="text-xs">(na podglądzie: na dole, najbliżej kamery)</span></span>
+                  <select className={`${inputCls} h-12 w-24 text-center font-score text-2xl`} value={c.config.mount.azimuth_deg == null ? "" : sectorAt(c.config.mount.azimuth_deg)}
+                    onChange={(e) => setStand(c, Number(e.target.value))}>
+                    {c.config.mount.azimuth_deg == null && <option value="">?</option>}
+                    {DEFAULT_BOARD.sector_order.map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </label>
               </div>
             ))}
           </div>
+          {sameStand && (
+            <div className="flex items-start gap-2 rounded-2xl bg-[color-mix(in_oklab,var(--warn)_14%,transparent)] p-3 text-sm text-[var(--warn)] lg:col-start-2">
+              <TriangleAlert size={18} className="mt-0.5 shrink-0" /> Dwie kamery mają wybraną tę samą liczbę — każda stoi przy innej.
+            </div>
+          )}
         </div>
       )}
 
