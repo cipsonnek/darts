@@ -410,22 +410,48 @@ def _transitions(labels: np.ndarray, min_run: int) -> list[tuple[float, int]]:
     return out
 
 
-def ring_outside_model(image_bgr: np.ndarray, cam: CameraModel, board: BoardGeometry,
-                       cfg: BoardDetectionConfig) -> bool:
-    """True when the alternating red/green of a scoring ring shows where the model has only
-    the background, past the board's edge: the model's double ring lies on the real triple."""
-    rr = board.ring_radii
-    scale = (rr["double_inner"] + rr["double_outer"]) / (rr["triple_inner"] + rr["triple_outer"])
-    red, green = segment_ring_colors(image_bgr, cfg)
+def _band_transitions(red: np.ndarray, green: np.ndarray, cam: CameraModel, board: BoardGeometry,
+                      r_in: float, r_out: float) -> int:
+    """Red/green changes around the board in the band r_in..r_out (mm) seen through ``cam``.
+    A scoring ring shows 20; single beds, the number ring and the background show none."""
     thetas = np.linspace(0.0, 360.0, 1440, endpoint=False)
     votes = []
-    for r in np.linspace(rr["double_inner"], rr["double_outer"], 7) * scale:
-        pts = cam.project(np.array([[*board.from_polar(float(r), float(t)), 0.0] for t in thetas]))
-        votes.append(_labels_at(red, green, pts))
+    for r in np.linspace(r_in, r_out, 7):
+        pts3 = np.array([[*board.from_polar(float(r), float(t)), 0.0] for t in thetas])
+        votes.append(_labels_at(red, green, cam.project(pts3)))
     v = np.stack(votes)
     n_red, n_green = (v == RED).sum(0), (v == GREEN).sum(0)
     lab = np.where(n_red > n_green, RED, np.where(n_green > n_red, GREEN, 0)).astype(np.int8)
-    return len(_transitions(lab, min_run=3)) >= board.n_sectors // 2
+    return len(_transitions(lab, min_run=3))
+
+
+def model_scale_problem(image_bgr: np.ndarray, cam: CameraModel, board: BoardGeometry,
+                        cfg: BoardDetectionConfig) -> str | None:
+    """Whether the pose has the board at the wrong size: "too_small" (its double ring lies on
+    the real triple), "too_big" (its triple lies on the real double), or None.
+
+    The double and triple rings share colours and wire directions, so a pose on the wrong
+    ring satisfies every edge check. What differs is what lies inside and outside: under
+    the model's triple ring there must be a colour ring, under its double ring too, and
+    past the double ring none."""
+    rr = board.ring_radii
+    red, green = segment_ring_colors(image_bgr, cfg)
+    few = board.n_sectors * 3 // 10  # 6 of 20: far-side segments are often unreadable
+    triple = _band_transitions(red, green, cam, board, rr["triple_inner"], rr["triple_outer"])
+    double = _band_transitions(red, green, cam, board, rr["double_inner"], rr["double_outer"])
+    scale = (rr["double_inner"] + rr["double_outer"]) / (rr["triple_inner"] + rr["triple_outer"])
+    outside = _band_transitions(red, green, cam, board, rr["double_inner"] * scale, rr["double_outer"] * scale)
+    if double < few and triple >= few:
+        return "too_big"
+    if triple < few or outside >= board.n_sectors // 2:
+        return "too_small"
+    return None
+
+
+def ring_outside_model(image_bgr: np.ndarray, cam: CameraModel, board: BoardGeometry,
+                       cfg: BoardDetectionConfig) -> bool:
+    """True when the model's double ring lies on the real triple ring."""
+    return model_scale_problem(image_bgr, cam, board, cfg) == "too_small"
 
 
 class BoardDetector:

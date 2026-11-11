@@ -72,6 +72,17 @@ export default function CalibrationWizard() {
     const init: Record<string, Result> = {};
     for (const c of usable) init[c.id] = { state: "waiting" };
     setResults(init);
+    // 1. Exposure and white balance: found once, then locked, so the picture stays put.
+    setExposure("running");
+    try {
+      const ex = await api.post<Record<string, { status: string }>>("/api/cameras/auto-exposure");
+      const st = Object.values(ex).map((x) => x.status);
+      setExposure(st.includes("unlocked") ? "partial" : st.includes("locked") ? "locked" : "skipped");
+      if (st.includes("locked")) await new Promise((r) => setTimeout(r, 1500)); // fresh frames
+    } catch {
+      setExposure("partial");
+    }
+    // 2. The grid, camera by camera.
     for (const c of usable) {
       setResults((r) => ({ ...r, [c.id]: { state: "running" } }));
       try {
@@ -85,6 +96,7 @@ export default function CalibrationWizard() {
   }
 
   const [turning, setTurning] = useState(false);
+  const [exposure, setExposure] = useState<"idle" | "running" | "locked" | "partial" | "skipped">("idle");
   // Where each camera stands decides which way the grid is turned: wires and colours repeat
   // every 36°, so only this tells the right rotation apart. Staff read it off the board.
   async function setStand(c: CameraInfo, number: number) {
@@ -213,6 +225,13 @@ export default function CalibrationWizard() {
 
       {phase === "run" && (
         <div className="animate-rise flex flex-col gap-5">
+          {exposure !== "idle" && exposure !== "skipped" && (
+            <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
+              {exposure === "running" ? <><Spinner /> Ustawiam jasność i kolory kamer (kilka sekund)…</>
+                : exposure === "locked" ? <><CircleCheck size={16} className="text-[var(--good)]" /> Jasność i kolory kamer ustawione i zablokowane.</>
+                  : <><TriangleAlert size={16} className="text-[var(--warn)]" /> Nie każda kamera pozwala zablokować jasność — te zostają na automatycznej.</>}
+            </div>
+          )}
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {enabled.map((c) => {
               const r = results[c.id];

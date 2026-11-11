@@ -117,6 +117,8 @@ class OpenCVCamera(Camera):
             cap.set(cv2.CAP_PROP_AUTOFOCUS, 1 if controls["autofocus"] else 0)
         if controls.get("focus") is not None:
             cap.set(cv2.CAP_PROP_FOCUS, float(controls["focus"]))
+        if controls.get("auto_wb"):
+            cap.set(cv2.CAP_PROP_AUTO_WB, 1)
         if controls.get("white_balance") is not None:
             cap.set(cv2.CAP_PROP_AUTO_WB, 0)
             cap.set(cv2.CAP_PROP_WB_TEMPERATURE, float(controls["white_balance"]))
@@ -133,6 +135,7 @@ class OpenCVCamera(Camera):
             "exposure": float(cap.get(cv2.CAP_PROP_EXPOSURE)),
             "gain": float(cap.get(cv2.CAP_PROP_GAIN)),
             "auto_exposure": float(cap.get(cv2.CAP_PROP_AUTO_EXPOSURE)),
+            "white_balance": float(cap.get(cv2.CAP_PROP_WB_TEMPERATURE)),
             "autofocus": float(cap.get(cv2.CAP_PROP_AUTOFOCUS)),
             "focus": float(cap.get(cv2.CAP_PROP_FOCUS)),
             "backend": cap.getBackendName(),

@@ -206,6 +206,71 @@ class VisionService:
             self.update_camera_config_only(camera_id, patch)
         return applied
 
+    def auto_exposure(self, settle_s: float = 3.0) -> dict[str, dict]:
+        """Let every camera find its exposure and white balance once, then lock both.
+
+        Left on automatic, cameras keep adjusting during play: every adjustment looks like
+        motion, and slow white-balance drift like an obstruction. Run with the board lit as
+        during play. Returns per camera: status locked | unlocked | skipped, and the values."""
+        out: dict[str, dict] = {}
+        if self.simulator or self.manager is None:
+            return {c.id: {"status": "skipped", "reason": "symulator"} for c in self.cfg.cameras}
+
+        def brightness(cid: str) -> float | None:
+            f = self.latest_frame(cid)
+            return None if f is None else float(f.image.mean())
+
+        cams = []
+        for c in self.cfg.cameras:
+            if not c.enabled or c.source.type != "opencv":
+                out[c.id] = {"status": "skipped", "reason": "nie jest kamerą USB"}
+                continue
+            try:
+                worker = self.manager.worker(c.id)
+                worker.camera.set_controls(auto_exposure=True, auto_wb=True)
+                cams.append((c.id, worker.camera))
+            except Exception as exc:  # noqa: BLE001
+                out[c.id] = {"status": "skipped", "reason": str(exc)}
+        time.sleep(settle_s)
+        auto = {}
+        for cid, cam in cams:
+            ctl = cam.get_controls()
+            auto[cid] = (ctl.get("exposure"), ctl.get("white_balance"), brightness(cid))
+            wb = ctl.get("white_balance")
+            cam.set_controls(auto_exposure=False, exposure=ctl.get("exposure"), white_balance=wb if wb and wb > 0 else None)
+        time.sleep(1.0)
+        for cid, cam in cams:
+            exp, wb, b_auto = auto[cid]
+            b = brightness(cid)
+            ok = b is not None and b_auto is not None and abs(b - b_auto) <= 0.2 * b_auto + 6
+            if not ok and exp is not None and b_auto is not None:
+                # The camera did not keep the automatic value: find the manual one that gives
+                # the same brightness (DirectShow exposure is a power of two: -4 = 1/16 s).
+                best = None
+                for e in ([exp + d for d in (-3, -2, -1, 0, 1, 2, 3)] if exp <= 0 else [exp * m for m in (0.25, 0.5, 1, 2, 4)]):
+                    cam.set_controls(exposure=e)
+                    time.sleep(0.6)
+                    be = brightness(cid)
+                    if be is not None and (best is None or abs(be - b_auto) < abs(best[1] - b_auto)):
+                        best = (e, be)
+                if best is not None:
+                    exp, b = best
+                    cam.set_controls(exposure=exp)
+                    time.sleep(0.4)
+                    ok = abs(b - b_auto) <= 0.2 * b_auto + 6
+            if ok:
+                self.update_camera_config_only(cid, {"auto_exposure": False, "exposure": exp,
+                                                     "white_balance": wb if wb and wb > 0 else None})
+                out[cid] = {"status": "locked", "exposure": exp, "white_balance": wb, "brightness": round(b, 1)}
+            else:
+                cam.set_controls(auto_exposure=True, auto_wb=True)
+                self.update_camera_config_only(cid, {"auto_exposure": True, "exposure": None})
+                out[cid] = {"status": "unlocked", "reason": "kamera nie przyjmuje ręcznej ekspozycji — zostaje automatyczna"}
+        if self.engine is not None:
+            self.engine.forget_images()
+        log.info("auto exposure", extra={"result": out})
+        return out
+
     def update_camera_config_only(self, camera_id: str, patch: dict[str, Any]) -> None:
         cur = self.camera(camera_id)
         new = CameraConfig.model_validate({**cur.model_dump(), **patch})

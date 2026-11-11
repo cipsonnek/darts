@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 import pytest
 
-from vision.board_detection.rings import ring_outside_model
+from vision.board_detection.rings import model_scale_problem, ring_outside_model
 from vision.calibration.board_pose import calibrate_board, landmarks, rotate_about_board
 from vision.calibration.intrinsics import IntrinsicsCalibrator, IntrinsicsResult, make_charuco_board, render_charuco
 from vision.calibration.refine import EdgeAligner
@@ -206,3 +206,25 @@ def test_wrong_mounting_angle_is_fixed_by_turning_the_result(world, sim_rig, boa
     assert abs((az - true_az + 180) % 360 - 180) < 2
     back = rotate_about_board(fixed, -36.0)
     assert np.allclose(back.R, res.camera.R) and np.allclose(back.t, res.camera.t)
+
+
+def test_wrong_size_is_seen_from_what_lies_under_the_rings(world, sim_rig, board) -> None:
+    """Seen on the real board: the grid sat on the triple ring and was graded fine, and the
+    look-outside check missed it. Under a too-small model's triple ring there is no colour
+    ring at all, which does not depend on predicting where the real double ring is."""
+    cfg = VisionConfig().board_detection
+    for cid in ("cam1", "cam2", "cam3"):
+        cam = sim_rig[cid]
+        img = world.render(cid, 0.0)
+        assert model_scale_problem(img, cam, board, cfg) is None
+        far = CameraModel(cam.K, cam.dist, cam.R, cam.t * (170.0 / 107.0), cam.image_size, cid)
+        assert model_scale_problem(img, far, board, cfg) == "too_small"
+        near = CameraModel(cam.K, cam.dist, cam.R, cam.t * (107.0 / 170.0), cam.image_size, cid)
+        assert model_scale_problem(img, near, board, cfg) == "too_big"
+        # the outer part of the picture hidden (as when the look-outside check fails)
+        masked = img.copy()
+        outer = cam.project(board.circle_points(125.0, 180)).astype(np.int32)
+        keep = np.zeros(img.shape[:2], np.uint8)
+        cv2.fillPoly(keep, [outer], 255)
+        masked[keep == 0] = (40, 40, 40)
+        assert model_scale_problem(masked, far, board, cfg) == "too_small"

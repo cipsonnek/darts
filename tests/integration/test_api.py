@@ -250,3 +250,10 @@ def test_turning_a_calibration_and_remembering_the_angle(tmp_path) -> None:
         assert c.post("/api/calibration/cam2/board/accept").status_code == 200
         cam2 = next(cm for cm in c.get("/api/cameras").json() if cm["id"] == "cam2")
         assert cam2["config"]["mount"]["azimuth_deg"] == round(az0) % 360
+
+
+def test_auto_exposure_is_skipped_on_synthetic_cameras(client) -> None:
+    r = client.post("/api/cameras/auto-exposure")
+    assert r.status_code == 200
+    assert {v["status"] for v in r.json().values()} == {"skipped"}
+    assert client.get("/api/health").json()["cameras_connected"] == 3

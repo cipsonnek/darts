@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 import cv2
 import numpy as np
 
-from vision.board_detection.rings import BoardDetector, ring_outside_model
+from vision.board_detection.rings import BoardDetector, model_scale_problem
 from vision.calibration.intrinsics import IntrinsicsResult
 from vision.calibration.refine import EdgeAligner, RefineResult
 from vision.config import VisionConfig
@@ -106,14 +106,18 @@ def calibrate_board(
         return BoardCalibration(False, reason=f"refinement failed: {exc}", detection=detection_summary)
 
     grade, checks = grade_calibration(refined, config, source)
-    if ring_outside_model(image, refined.camera, board, config.board_detection):
+    problem = model_scale_problem(image, refined.camera, board, config.board_detection)
+    if problem is not None:
         # Wires coincide on the double and triple rings, so the edge checks cannot see this.
-        if method == "auto" and not assume_triple:
+        if problem == "too_small" and method == "auto" and not assume_triple:
             return calibrate_board(image, config, camera_id, intrinsics, azimuth_prior_deg, hint_px,
                                    assume_triple=True)
+        log.warning("board calibration rejected: wrong size", extra={"camera": camera_id, "problem": problem})
         return BoardCalibration(False, grade="poor", checks=checks, detection=detection_summary,
-                                reason="Siatka jest za mała: pierścień potrójny wzięty za podwójny. "
-                                       "Sprawdź, czy cały pierścień podwójny jest dobrze widoczny.")
+                                reason=("Siatka jest za mała: pierścień potrójny wzięty za podwójny. "
+                                        if problem == "too_small" else "Siatka jest za duża. ")
+                                + "Sprawdź, czy cały pierścień podwójny jest dobrze widoczny, "
+                                  "albo użyj punktów ręcznie w kalibracji zaawansowanej.")
     result = BoardCalibration(
         ok=grade != "failed", camera=refined.camera, method=method, intrinsics_source=source, grade=grade,
         metrics=refined.metrics(), derived=derived_parameters(refined.camera, board), checks=checks,

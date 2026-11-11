@@ -119,3 +119,60 @@ def test_permanent_scene_change_is_adopted_not_obstruction_forever() -> None:
     assert not [e for e in events if e.type == EventType.DART]
     assert eng.state == EngineState.IDLE
     assert res is not None
+
+
+def _flicker(img: np.ndarray, i: int) -> np.ndarray:
+    """Every 2 s a few frames with a moving bright patch: breaks stillness like sensor noise or
+    flicker does, without being a real change of the scene."""
+    if i % 30 >= 3:
+        return img
+    out = img.copy()
+    h, w = out.shape[:2]
+    x = w // 2 + (i % 30) * 12
+    out[h // 2 - 25: h // 2 + 25, x - 25: x + 25] = 255
+    return out
+
+
+def test_restless_obstruction_is_adopted_too() -> None:
+    """Seen on the real board after ~15 min: the status flipped between "motion" and
+    "obstructed" for good. A changed picture that never stays perfectly still for 8 s was
+    never adopted."""
+    r = _runner(8)
+    r.run(Scenario("idle", [], 2.0))
+    eng = r.engine
+    last = {cid: ctx.last_frame for cid, ctx in eng.cameras.items()}
+    t0 = max(f.timestamp for f in last.values())
+    changed = {}
+    for cid, f in last.items():
+        img = f.image.copy()
+        h, w = img.shape[:2]
+        img[h // 4: 3 * h // 4, w // 4: 3 * w // 4] = (40, 90, 160)
+        changed[cid] = img
+    events, states = [], []
+    for i in range(1, 30 * 15):
+        events += eng.process_frameset({cid: Frame(cid, _flicker(changed[cid], i), t0 + i / 15, 10_000 + i)
+                                        for cid in changed})
+        states.append(eng.state)
+    assert EngineState.OBSTRUCTED in states  # it was an obstruction first
+    assert [e for e in events if e.type == EventType.BASELINE and e.data.get("reason") == "scene_changed"]
+    assert states[-1] == EngineState.IDLE
+    assert not [e for e in events if e.type == EventType.DART]
+
+
+def test_idle_references_follow_slow_drift() -> None:
+    """A picture drifting slowly (white balance, lamp warming up) must never add up to an
+    obstruction: while idle, the references follow it."""
+    r = _runner(8)
+    r.run(Scenario("idle", [], 2.0))
+    eng = r.engine
+    last = {cid: ctx.last_frame for cid, ctx in eng.cameras.items()}
+    t0 = max(f.timestamp for f in last.values())
+    events = []
+    n = 60 * 15
+    for i in range(1, n):
+        gain = 1.0 + 0.6 * i / n  # +60 % brightness over a minute
+        frames = {cid: Frame(cid, np.clip(f.image.astype(np.float32) * gain, 0, 255).astype(np.uint8),
+                             t0 + i / 15, 10_000 + i) for cid, f in last.items()}
+        events += eng.process_frameset(frames)
+    assert not [e for e in events if e.type in (EventType.OBSTRUCTION, EventType.DART)]
+    assert eng.state == EngineState.IDLE

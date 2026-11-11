@@ -242,6 +242,21 @@ class TrackingConfig(BaseModel):
     # An "obstruction" that stays perfectly still this long is not a person but a changed
     # scene (lights switched on, curtains, board nudged): adopt it as the new reference.
     obstruction_rebaseline_s: float = 8.0
+    # The same when the scene never gets that still (sensor noise, flicker): an obstruction
+    # lasting this long in total is adopted too. Without it a slow drift of the picture
+    # (white balance, lamp warming up) left the board flipping between "motion" and
+    # "obstructed" for good.
+    obstruction_max_s: float = 20.0
+    # While idle and still, the references follow the picture at this interval, so slow
+    # drift never adds up to an "obstruction". 0 disables.
+    idle_refresh_s: float = 10.0
+    # A hand at the board (pulling darts) moves for long and covers a lot; a dart does
+    # neither. With darts in the board, a scene that settles after motion at least this long
+    # AND this large (fraction of the board region between frames) is handling, not a throw:
+    # no new darts are read from it. Values from the simulator (3 fast darts: 1.4 s, 0.03;
+    # takeout: 2.2 s, 0.10) - not yet tuned on real footage.
+    handling_min_motion_s: float = 1.8
+    handling_min_peak_fraction: float = 0.06
 
 
 class ValidationConfig(BaseModel):

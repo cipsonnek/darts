@@ -138,6 +138,8 @@ class VisionEngine:
         self._still_since: float | None = None
         self._peak_motion = 0.0
         self._obstruction_reported = False
+        self._obstructed_since: float | None = None
+        self._last_refresh_ts = 0.0
         self._last_ts = 0.0
         self._aligner: EdgeAligner | None = None
         self.last_detection: dict | None = None
@@ -193,6 +195,19 @@ class VisionEngine:
         with self._lock:
             if camera_id in self.cameras:
                 self.cameras[camera_id] = CameraContext(camera_id, None)
+
+    def forget_images(self) -> None:
+        """Drop every reference image and known dart (the cameras' picture changed, e.g. new
+        exposure). The next still scene becomes the new empty-board baseline."""
+        with self._lock:
+            for ctx in self.cameras.values():
+                ctx.reference = None
+                ctx.empty = None
+                ctx.still_frames.clear()
+            self.board_state.clear()
+            self._obstructed_since = None
+            self._still_since = None
+            self.state = EngineState.STARTING
 
     def pause(self, paused: bool = True) -> None:
         self._paused = paused
@@ -288,8 +303,19 @@ class VisionEngine:
                 self._still_since = ts
             settled = self._still_since is not None and \
                 (ts - self._still_since) * 1000.0 >= self.config.motion.settle_time_ms
+            idle_s = self.config.tracking.idle_refresh_s
             if self._paused:
                 pass
+            elif (idle_s > 0 and self.state == EngineState.IDLE and not moving and self._has_baseline()
+                  and self._still_since is not None and ts - max(self._still_since, self._last_refresh_ts) >= idle_s):
+                # Nothing is happening: let the references follow slow drift of the picture.
+                self._last_refresh_ts = ts
+                avg = self._averaged(frames)
+                self._refresh_references(avg)
+                if len(self.board_state) == 0:
+                    for cid, f in avg.items():
+                        if self.cameras[cid].empty is not None:
+                            self.cameras[cid].empty = f.image.copy()
             elif not self._has_baseline():
                 if settled:
                     self._set_baseline(ts, events)
@@ -359,7 +385,10 @@ class VisionEngine:
         # 1. Obstruction: something large (hand, body) is still in front of the board.
         obstructed = [cid for cid, ch in changes.items() if ch.added_fraction > cfg.detection.obstruction_area_fraction]
         if len(obstructed) >= max(1, math.ceil(len(cams) / 2)):
-            if self._still_since is not None and ts - self._still_since >= cfg.tracking.obstruction_rebaseline_s:
+            if self._obstructed_since is None:
+                self._obstructed_since = ts
+            if (self._still_since is not None and ts - self._still_since >= cfg.tracking.obstruction_rebaseline_s)                     or ts - self._obstructed_since >= cfg.tracking.obstruction_max_s:
+                self._obstructed_since = None
                 self._rebaseline(frames, cams, ts, events, obstructed)
                 return
             self.stats.obstructions += 1
@@ -371,6 +400,7 @@ class VisionEngine:
             self._set_state(EngineState.OBSTRUCTED, ts, events)
             return
         self._obstruction_reported = False
+        self._obstructed_since = None
 
         # 2. Removed darts (takeout).
         removed = self._detect_removed(frames, cams)
@@ -384,7 +414,10 @@ class VisionEngine:
         # 3. New darts. Not in the same still scene as a takeout: the player has to step back
         # before throwing, so that is a later scene. Here the spots the darts left are what
         # changed, and against an empty-board image taken in other light they read as new darts.
-        new_events = [] if removed else self._detect_new(frames, cams, changes, ts)
+        handling = (len(self.board_state) > 0 and self._motion_start_ts is not None
+                    and ts - self._motion_start_ts >= cfg.tracking.handling_min_motion_s
+                    and self._peak_motion >= cfg.tracking.handling_min_peak_fraction)
+        new_events = [] if removed or handling else self._detect_new(frames, cams, changes, ts)
         events.extend(new_events)
 
         # 4. Nothing recognised but the scene changed.
