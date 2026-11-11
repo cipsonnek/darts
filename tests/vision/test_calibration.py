@@ -252,3 +252,35 @@ def test_board_is_found_in_a_discoloured_picture(world, sim_rig, kind) -> None:
                           azimuth_prior_deg=round(az / 30) * 30)
     assert res.ok, res.reason
     assert board_shift_mm(cam, res.camera) < 0.5
+
+
+def _on_wood(img: np.ndarray, cam: CameraModel, board, seed: int = 1) -> np.ndarray:
+    """The board lying on an orange wooden table under warm light, with colour noise on
+    the dark number band: the first real venue."""
+    rng = np.random.default_rng(seed)
+    h, w = img.shape[:2]
+    th = np.linspace(0, 360, 720, endpoint=False)
+
+    def outline(r: float) -> np.ndarray:
+        return cam.project(np.array([[*board.from_polar(r, float(t)), 0.0] for t in th])).round().astype(np.int32)
+
+    face = np.zeros((h, w), np.uint8)
+    cv2.fillPoly(face, [outline(225.0)], 255)
+    band = face.copy()
+    cv2.fillPoly(band, [outline(172.0)], 0)
+    out = img.copy()
+    wood = np.array([45, 100, 200]) + rng.normal(0, 12, (h, w, 1)) + rng.normal(0, 6, (h, w, 3))
+    out[face == 0] = np.clip(wood, 0, 255).astype(np.uint8)[face == 0]
+    speck = (band > 0) & (rng.random((h, w)) < 0.25)
+    out[speck] = (15, 30, 70)
+    return out
+
+
+@pytest.mark.parametrize("cid", ["cam1", "cam2", "cam3"])
+def test_board_on_a_wooden_table_is_found(world, sim_rig, board, cid) -> None:
+    cam = sim_rig[cid]
+    az = {s.camera_id: s.azimuth_deg for s in default_rig_specs(960, 540, jitter_seed=3)}[cid]
+    res = calibrate_board(_on_wood(world.render(cid, 0.0), cam, board), VisionConfig(), cid, intrinsics=_intr(cam),
+                          azimuth_prior_deg=round(az / 30) * 30)
+    assert res.ok, res.reason
+    assert board_shift_mm(cam, res.camera) < 0.5

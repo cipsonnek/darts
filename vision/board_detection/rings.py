@@ -75,7 +75,46 @@ def segment_ring_colors(image_bgr: np.ndarray, cfg: BoardDetectionConfig) -> tup
     k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
     red = cv2.morphologyEx(red.astype(np.uint8) * 255, cv2.MORPH_OPEN, k)
     green = cv2.morphologyEx(green.astype(np.uint8) * 255, cv2.MORPH_OPEN, k)
-    return red, green
+    return _drop_background(red), _drop_background(green)
+
+
+def _drop_background(mask: np.ndarray) -> np.ndarray:
+    """The mask without large areas of the colour: a wooden table or floor under warm light
+    is as "red" as the board's red beds and swallows the rings (first real venue). A bed of
+    a scoring ring is small and closed in by wires and the black number band, so anything
+    much larger than a bed, or a sizeable patch running off the picture, is background."""
+    h, w = mask.shape
+    # Noise on the dark number band can bridge a bed to the background: cut thin bridges.
+    # Wood grain leaves pinholes that would let the opening eat the whole area: fill first.
+    core = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+    core = cv2.morphologyEx(core, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)))
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(core, connectivity=8)
+    if n <= 1:
+        return mask
+    area = stats[:, cv2.CC_STAT_AREA]
+    x0, y0 = stats[:, cv2.CC_STAT_LEFT], stats[:, cv2.CC_STAT_TOP]
+    x1, y1 = x0 + stats[:, cv2.CC_STAT_WIDTH], y0 + stats[:, cv2.CC_STAT_HEIGHT]
+    edge = (x0 == 0) | (y0 == 0) | (x1 == w) | (y1 == h)
+    big = (area > 0.012 * w * h) | (edge & (area > 0.002 * w * h))
+    big[0] = False
+    if not big.any():
+        return mask
+    bg = big[labels].astype(np.uint8) * 255
+    # Take the rim that the opening shaved off, and the speckle hanging on it, as well.
+    bg = cv2.dilate(bg, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15)))
+    n2, lab2 = cv2.connectedComponents(mask, connectivity=8)
+    touched = np.zeros(n2, bool)
+    touched[np.unique(lab2[(bg > 0) & (mask > 0)])] = True
+    touched[0] = False
+    # A bed joined to the background only by speckle must survive: drop whole components
+    # only when most of them is background, otherwise just the background part.
+    out = mask.copy()
+    out[bg > 0] = 0
+    for i in np.flatnonzero(touched):
+        comp = lab2 == i
+        if (bg[comp] > 0).mean() > 0.6:
+            out[comp] = 0
+    return out
 
 
 def normalise_colours(image_bgr: np.ndarray) -> np.ndarray:
