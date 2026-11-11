@@ -78,6 +78,34 @@ def segment_ring_colors(image_bgr: np.ndarray, cfg: BoardDetectionConfig) -> tup
     return red, green
 
 
+def normalise_colours(image_bgr: np.ndarray) -> np.ndarray:
+    """The picture with its colour cast removed and its contrast stretched.
+
+    The ring colours are found by fixed hue and saturation limits. A camera left on a wrong
+    white balance or exposure (or simply a warm lamp) moves the board's red and green out of
+    them, although the rings are plain to the eye. The brightest tenth of the picture (white
+    beds, the number ring) is taken as neutral."""
+    img = image_bgr.astype(np.float32)
+    grey = img.mean(2)
+    lo, hi = np.percentile(grey, (1, 99))
+    if hi - lo < 8:
+        return image_bgr.copy()
+    ref = img[grey >= np.percentile(grey, 90)].mean(0)
+    gain = np.clip(ref.mean() / np.maximum(ref, 1.0), 0.4, 2.5)
+    img = (img * gain - lo) * (255.0 / (hi - lo))
+    return np.clip(img, 0, 255).astype(np.uint8)
+
+
+def colour_view(image_bgr: np.ndarray, cfg: BoardDetectionConfig) -> np.ndarray:
+    """The picture with what the detector takes for ring red and ring green painted over:
+    shows at a glance why a board was not found."""
+    red, green = segment_ring_colors(image_bgr, cfg)
+    out = (image_bgr * 0.55).astype(np.uint8)
+    out[red > 0] = (0, 0, 255)
+    out[green > 0] = (0, 255, 0)
+    return out
+
+
 def _fit_outer_ellipse(ring_mask: np.ndarray, min_area: float) -> tuple | None:
     res = _fit_outer_ellipse_pts(ring_mask, min_area)
     return None if res is None else res[0]

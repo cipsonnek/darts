@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 import cv2
 import numpy as np
 
-from vision.board_detection.rings import BoardDetector, model_scale_problem
+from vision.board_detection.rings import BoardDetector, model_scale_problem, normalise_colours
 from vision.calibration.intrinsics import IntrinsicsResult
 from vision.calibration.refine import EdgeAligner, RefineResult
 from vision.config import VisionConfig
@@ -47,15 +47,47 @@ class BoardCalibration:
     checks: list[dict] = field(default_factory=list)
     reason: str | None = None
     detection: dict | None = None
+    # How the picture had to be prepared before the board was found: "" (as it came),
+    # "normalised" (colour cast removed), "normalised_pale" (and pale colours accepted).
+    picture: str = ""
 
     def to_dict(self) -> dict:
         return {"ok": self.ok, "method": self.method, "intrinsics_source": self.intrinsics_source,
                 "grade": self.grade, "metrics": self.metrics, "derived": self.derived, "checks": self.checks,
-                "reason": self.reason, "detection": self.detection,
+                "reason": self.reason, "detection": self.detection, "picture": self.picture,
                 "camera": self.camera.to_dict() if self.camera is not None else None}
 
 
 def calibrate_board(
+    image: np.ndarray,
+    config: VisionConfig,
+    camera_id: str,
+    intrinsics: IntrinsicsResult | None = None,
+    azimuth_prior_deg: float | None = None,
+    hint_px: tuple[float, float] | None = None,
+    manual_points: dict[str, tuple[float, float]] | None = None,
+    assume_triple: bool = False,
+) -> BoardCalibration:
+    """Board pose from one picture. Automatic detection that fails on the picture as it came
+    is tried again with the colour cast removed, then also with pale colours accepted."""
+    first = _calibrate_once(image, config, camera_id, intrinsics, azimuth_prior_deg, hint_px,
+                            manual_points, assume_triple)
+    if first.ok or manual_points:
+        return first
+    clean = normalise_colours(image)
+    bd = config.board_detection
+    pale = config.model_copy(update={"board_detection": bd.model_copy(
+        update={"min_saturation": max(25, bd.min_saturation // 2)})})
+    for name, cfg in (("normalised", config), ("normalised_pale", pale)):
+        res = _calibrate_once(clean, cfg, camera_id, intrinsics, azimuth_prior_deg, hint_px, None, assume_triple)
+        if res.ok:
+            res.picture = name
+            log.info("board found after colour normalisation", extra={"camera": camera_id, "picture": name})
+            return res
+    return first
+
+
+def _calibrate_once(
     image: np.ndarray,
     config: VisionConfig,
     camera_id: str,
@@ -109,7 +141,7 @@ def calibrate_board(
     problem = model_scale_problem(image, refined.camera, board, config.board_detection)
     if problem in ("too_small", "maybe_small") and method == "auto" and not assume_triple:
         # Wires coincide on the double and triple rings, so the edge checks cannot see this.
-        retry = calibrate_board(image, config, camera_id, intrinsics, azimuth_prior_deg, hint_px,
+        retry = _calibrate_once(image, config, camera_id, intrinsics, azimuth_prior_deg, hint_px,
                                 assume_triple=True)
         if retry.ok:
             return retry

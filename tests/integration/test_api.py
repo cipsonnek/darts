@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import time
 
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
@@ -257,3 +258,19 @@ def test_auto_exposure_is_skipped_on_synthetic_cameras(client) -> None:
     assert r.status_code == 200
     assert {v["status"] for v in r.json().values()} == {"skipped"}
     assert client.get("/api/health").json()["cameras_connected"] == 3
+
+
+def test_failed_calibration_shows_what_the_camera_saw(client) -> None:
+    """A dark picture: no board, a plain-language reason, and the picture to look at."""
+    vision = client.app.state.vision
+    real = vision.averaged_frame
+    vision.averaged_frame = lambda cid, *a, **k: np.full((540, 960, 3), 4, np.uint8)
+    try:
+        res = client.post("/api/calibration/cam1/board", json={"method": "auto"}).json()
+    finally:
+        vision.averaged_frame = real
+    assert res["ok"] is False
+    assert "ciemny" in res["reason"]
+    jpg = client.get("/api/calibration/cam1/preview.jpg")
+    assert jpg.status_code == 200 and jpg.content[:2] == b"\xff\xd8"
+    vision._failed_view.clear()

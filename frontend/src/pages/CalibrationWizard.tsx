@@ -235,10 +235,18 @@ export default function CalibrationWizard() {
                         <img src={`/api/calibration/${c.id}/preview.jpg?width=900&_=${r.n}`} className="h-full w-full object-cover" alt={`Kalibracja ${c.name}`} />
                       </button>
                     ) : r?.state === "done" || r?.state === "error" ? (
-                      <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-sm text-[var(--bad)]">
-                        <CircleX size={36} />
-                        {r.reason || "Kamera nie widzi tarczy wyraźnie."}
-                      </div>
+                      <>
+                        {/* What the detector saw: ring red and green painted over the picture. */}
+                        {r.state === "done" && (
+                          <button className="absolute inset-0" onClick={() => setZoom({ id: c.id, name: c.name })} title="Powiększ">
+                            <img src={`/api/calibration/${c.id}/preview.jpg?width=900&_=${r.n}`} className="h-full w-full object-cover" alt={`Obraz ${c.name}`} />
+                          </button>
+                        )}
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-2 bg-black/75 p-2 text-left text-xs text-[var(--bad)]">
+                          <CircleX size={20} className="shrink-0" />
+                          {r.reason || "Kamera nie widzi tarczy wyraźnie."}
+                        </div>
+                      </>
                     ) : (
                       <div className="grid h-full place-items-center"><Spinner /></div>
                     )}

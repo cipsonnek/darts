@@ -228,3 +228,27 @@ def test_wrong_size_is_seen_from_what_lies_under_the_rings(world, sim_rig, board
         cv2.fillPoly(keep, [outer], 255)
         masked[keep == 0] = (40, 40, 40)
         assert model_scale_problem(masked, far, board, cfg) == "maybe_small"
+
+
+def _spoil(img: np.ndarray, kind: str) -> np.ndarray:
+    f = img.astype(np.float32)
+    if kind == "cold":  # white balance stuck far too cold
+        f *= np.array([1.9, 1.0, 0.45])
+    elif kind == "warm":  # ... or far too warm
+        f *= np.array([0.4, 0.95, 1.5])
+    elif kind == "pale":  # exposure too long: colours washed out
+        f = f * 0.45 + 135
+    elif kind == "dim":  # exposure too short
+        f *= 0.22
+    return np.clip(f, 0, 255).astype(np.uint8)
+
+
+@pytest.mark.parametrize("kind", ["cold", "warm", "pale", "dim"])
+def test_board_is_found_in_a_discoloured_picture(world, sim_rig, kind) -> None:
+    """A camera left on a wrong white balance or exposure shows a board anyone can see."""
+    cam = sim_rig["cam1"]
+    az = {s.camera_id: s.azimuth_deg for s in default_rig_specs(960, 540, jitter_seed=3)}["cam1"]
+    res = calibrate_board(_spoil(world.render("cam1", 0.0), kind), VisionConfig(), "cam1", intrinsics=_intr(cam),
+                          azimuth_prior_deg=round(az / 30) * 30)
+    assert res.ok, res.reason
+    assert board_shift_mm(cam, res.camera) < 0.5

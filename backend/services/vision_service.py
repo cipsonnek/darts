@@ -20,6 +20,7 @@ import numpy as np
 
 from backend.settings import AppSettings, save_runtime_overrides
 from backend.ws.hub import EventHub
+from vision.board_detection.rings import colour_view
 from vision.calibration.board_pose import (BoardCalibration, calibrate_board, derived_parameters, landmarks,
                                           rotate_about_board, STANDARD_MANUAL_POINTS)
 from vision.calibration.intrinsics import IntrinsicsCalibrator, IntrinsicsResult, render_charuco
@@ -57,6 +58,7 @@ class VisionService:
         self._intrinsics: dict[str, IntrinsicsCalibrator] = {}
         self._intrinsics_results: dict[str, IntrinsicsResult] = {}
         self._pending_pose: dict[str, BoardCalibration] = {}
+        self._failed_view: dict[str, np.ndarray] = {}
         self._validation_thread: threading.Thread | None = None
         self._stop = threading.Event()
         self.started_at = time.time()
@@ -460,10 +462,29 @@ class VisionService:
             if r.ok and r.grade in rank:
                 break
         assert res is not None
+        out = res.to_dict()
         if res.ok:
             self._pending_pose[camera_id] = res
-        self.hub.publish("calibration", "board_detection", {"camera_id": camera_id, **res.to_dict()})
-        return res.to_dict()
+            self._failed_view.pop(camera_id, None)
+        elif img is not None and not pts:
+            # Show what the detector saw: staff (and support) can tell a dark, burnt-out or
+            # discoloured picture from a board that is simply out of frame.
+            self._failed_view[camera_id] = colour_view(img, self.cfg.board_detection)
+            grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            mean, burnt = float(grey.mean()), float((grey >= 250).mean())
+            hint = ("Obraz z kamery jest bardzo ciemny." if mean < 35
+                    else "Obraz z kamery jest prześwietlony." if burnt > 0.2 else None)
+            out["picture_stats"] = {"brightness": round(mean, 1), "burnt_fraction": round(burnt, 3)}
+            if hint:
+                out["reason"] = f"{hint} Wejdź w Kamery i kliknij „Jasność: automatyczna”."
+            try:
+                out["picture_stats"]["controls"] = self.manager.worker(camera_id).camera.get_controls()
+            except Exception:  # noqa: BLE001 - simulator or a reconnecting camera
+                pass
+            log.warning("board detection failed", extra={"camera": camera_id, "reason": res.reason,
+                                                         **out["picture_stats"]})
+        self.hub.publish("calibration", "board_detection", {"camera_id": camera_id, **out})
+        return out
 
     def rotate_pending(self, camera_id: str, steps: int) -> dict:
         """Turn the pending result by whole colour periods (2 sectors = 36° each) when its
@@ -507,6 +528,12 @@ class VisionService:
 
     def preview_pose(self, camera_id: str, width: int | None = None) -> bytes | None:
         res = self._pending_pose.get(camera_id)
+        failed = self._failed_view.get(camera_id)
+        if res is None and failed is not None:
+            if width and width < failed.shape[1]:
+                failed = cv2.resize(failed, (width, round(failed.shape[0] * width / failed.shape[1])))
+            ok, buf = cv2.imencode(".jpg", failed, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            return buf.tobytes() if ok else None
         model = res.camera if res is not None else None
         return self.render_view(camera_id, width, {"board", "sectors", "labels"}, "raw", 85, model_override=model)
 
