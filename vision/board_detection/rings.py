@@ -443,8 +443,12 @@ def model_scale_problem(image_bgr: np.ndarray, cam: CameraModel, board: BoardGeo
     outside = _band_transitions(red, green, cam, board, rr["double_inner"] * scale, rr["double_outer"] * scale)
     if double < few and triple >= few:
         return "too_big"
-    if triple < few or outside >= board.n_sectors // 2:
+    if outside >= board.n_sectors // 2:
         return "too_small"
+    if triple < few:
+        # No ring seen under the model's triple: the model may be too small, or the real
+        # triple ring is just hard to read in this picture. Not proof on its own.
+        return "maybe_small"
     return None
 
 
@@ -468,7 +472,7 @@ class BoardDetector:
         layers = _ellipse_layers(ring, self.cfg.min_ring_area_fraction * w * h)
         layers = sorted(layers + _blob_ring_layers(red, green), key=lambda l: -l[0][1][0] * l[0][1][1])
         if not layers:
-            return BoardDetection(False, "no red/green double ring found — is the whole board visible and lit?")
+            return BoardDetection(False, "Nie widać czerwono-zielonego pierścienia tarczy. Sprawdź, czy cała tarcza jest w kadrze i oświetlona.")
         rr = self.board.ring_radii
         mid_scale = ((rr["double_inner"] + rr["double_outer"]) / 2) / rr["double_outer"]
         inner_scale = rr["double_inner"] / rr["double_outer"]
@@ -490,6 +494,11 @@ class BoardDetector:
             return ellipse, edge, lab, tr, count
 
         scored = [score(e, edge) for e, edge in layers]
+        # A candidate partly outside the picture (a lit patch of floor, the lamp ring) cannot
+        # be read; prefer the ones that are fully visible.
+        inside = [s for s in scored if (s[2] == -1).mean() <= 0.02]
+        if inside:
+            scored = inside
         best_count = max(s[4] for s in scored)
         chosen = next((s for s in scored if s[4] >= max(6, 0.7 * best_count)), None)
         if chosen is None:
@@ -517,10 +526,10 @@ class BoardDetector:
             chosen = max(same, key=lambda s: (s[4], s[0][1][0] * s[0][1][1]))
         ellipse, self._edge_pts, labels, trans, _ = chosen
         if (labels == -1).mean() > 0.02:
-            return BoardDetection(False, "the double ring is partly outside the image", ellipse)
+            return BoardDetection(False, "Pierścień podwójny nie mieści się w kadrze kamery (albo obraz jest prześwietlony i kolory zbladły).", ellipse)
         if len(trans) < 6:
-            return BoardDetection(False, f"found only {len(trans)} colour transitions on the double ring "
-                                  "(remove darts and obstructions, check lighting)", ellipse)
+            return BoardDetection(False, f"Na pierścieniu podwójnym widać tylko {len(trans)} z 20 pól. "
+                                  "Wyjmij lotki, odsłoń tarczę i sprawdź światło.", ellipse)
         tparams = np.array([p for p, _ in trans]) * (2 * np.pi / n_samples)
         trans_px = _ellipse_points(ellipse, tparams, mid_scale)
         colours = [c for _, c in trans]
@@ -536,8 +545,8 @@ class BoardDetector:
             candidates = self._candidates_from_circle_pose(
                 red, green, ellipse, trans_px, K, dist, (w, h), camera_id, ring_inner, ring_outer)
             if not candidates:
-                return BoardDetection(False, f"found {len(trans)} of {n} colour transitions and could not "
-                                      "assign them (remove darts and obstructions, check lighting)", ellipse)
+                return BoardDetection(False, f"Widać {len(trans)} z {n} pól pierścienia i nie da się ich dopasować. "
+                                      "Wyjmij lotki, odsłoń tarczę i sprawdź światło.", ellipse)
         for direction in ((1, -1) if len(trans) == n else ()):
             for offset in range(n):
                 # Colour before boundary j (moving clockwise) is that of sector j-1;
@@ -570,8 +579,8 @@ class BoardDetector:
         det.chosen, det.ambiguous = self._choose(candidates, azimuth_prior_deg, hint_px, K, dist)
         if det.chosen is None:
             det.ok = False
-            det.reason = ("board found, but its rotation is ambiguous: set the camera's mounting position "
-                          "(clock angle) or click once inside the 20 segment")
+            det.reason = ("Tarcza znaleziona, ale nie wiadomo, jak jest obrócona. "
+                          "Wybierz liczbę, przy której stoi kamera.")
             return det
         det.correspondences = self._collect(image_bgr, red, green, det.chosen, K, dist)
         bxy = np.array([c[0] for c in det.correspondences])[:, :2]

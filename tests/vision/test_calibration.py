@@ -68,7 +68,7 @@ def test_rotation_ambiguity_requires_prior_or_hint(world, sim_rig) -> None:
     cam = sim_rig["cam1"]
     img = world.render("cam1", 0.0)
     res = calibrate_board(img, VisionConfig(), "cam1", intrinsics=_intr(cam), azimuth_prior_deg=None)
-    assert not res.ok and "ambiguous" in (res.reason or "")
+    assert not res.ok and "obrócona" in (res.reason or "")
     # One click inside the single 20 resolves it.
     hint = cam.project(np.array([[0.0, 140.0, 0.0]]))[0]
     res2 = calibrate_board(img, VisionConfig(), "cam1", intrinsics=_intr(cam), hint_px=(float(hint[0]), float(hint[1])))
@@ -227,4 +227,4 @@ def test_wrong_size_is_seen_from_what_lies_under_the_rings(world, sim_rig, board
         keep = np.zeros(img.shape[:2], np.uint8)
         cv2.fillPoly(keep, [outer], 255)
         masked[keep == 0] = (40, 40, 40)
-        assert model_scale_problem(masked, far, board, cfg) == "too_small"
+        assert model_scale_problem(masked, far, board, cfg) == "maybe_small"

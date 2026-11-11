@@ -206,6 +206,27 @@ class VisionService:
             self.update_camera_config_only(camera_id, patch)
         return applied
 
+    def exposure_automatic(self) -> dict[str, dict]:
+        """Hand exposure and white balance back to the cameras (continuous automatic). Also
+        the way out when a camera is stuck on a bad manual value."""
+        out: dict[str, dict] = {}
+        if self.simulator or self.manager is None:
+            return {c.id: {"status": "skipped", "reason": "symulator"} for c in self.cfg.cameras}
+        for c in self.cfg.cameras:
+            if not c.enabled or c.source.type != "opencv":
+                out[c.id] = {"status": "skipped", "reason": "nie jest kamerą USB"}
+                continue
+            try:
+                self.manager.worker(c.id).camera.set_controls(auto_exposure=True, auto_wb=True)
+            except Exception:  # noqa: BLE001 - reconnecting: open() applies the saved config
+                pass
+            self.update_camera_config_only(c.id, {"auto_exposure": True, "exposure": None, "white_balance": None})
+            out[c.id] = {"status": "automatic"}
+        if self.engine is not None:
+            self.engine.forget_images()
+        log.info("exposure set to automatic", extra={"cameras": list(out)})
+        return out
+
     def auto_exposure(self, settle_s: float = 3.0) -> dict[str, dict]:
         """Let every camera find its exposure and white balance once, then lock both.
 
@@ -216,9 +237,18 @@ class VisionService:
         if self.simulator or self.manager is None:
             return {c.id: {"status": "skipped", "reason": "symulator"} for c in self.cfg.cameras}
 
-        def brightness(cid: str) -> float | None:
+        def stats(cid: str) -> tuple[float, float] | None:
+            """Mean and 98th percentile of grey in the middle of the picture (the board)."""
             f = self.latest_frame(cid)
-            return None if f is None else float(f.image.mean())
+            if f is None:
+                return None
+            h, w = f.image.shape[:2]
+            mid = cv2.cvtColor(f.image[h // 5: h - h // 5, w // 5: w - w // 5], cv2.COLOR_BGR2GRAY)
+            return float(mid.mean()), float(np.percentile(mid, 98))
+
+        def brightness(cid: str) -> float | None:
+            st = stats(cid)
+            return None if st is None else st[0]
 
         cams = []
         for c in self.cfg.cameras:
@@ -232,40 +262,59 @@ class VisionService:
             except Exception as exc:  # noqa: BLE001
                 out[c.id] = {"status": "skipped", "reason": str(exc)}
         time.sleep(settle_s)
-        auto = {}
-        for cid, cam in cams:
-            ctl = cam.get_controls()
-            auto[cid] = (ctl.get("exposure"), ctl.get("white_balance"), brightness(cid))
-            wb = ctl.get("white_balance")
-            cam.set_controls(auto_exposure=False, exposure=ctl.get("exposure"), white_balance=wb if wb and wb > 0 else None)
-        time.sleep(1.0)
-        for cid, cam in cams:
-            exp, wb, b_auto = auto[cid]
-            b = brightness(cid)
-            ok = b is not None and b_auto is not None and abs(b - b_auto) <= 0.2 * b_auto + 6
-            if not ok and exp is not None and b_auto is not None:
-                # The camera did not keep the automatic value: find the manual one that gives
-                # the same brightness (DirectShow exposure is a power of two: -4 = 1/16 s).
-                best = None
-                for e in ([exp + d for d in (-3, -2, -1, 0, 1, 2, 3)] if exp <= 0 else [exp * m for m in (0.25, 0.5, 1, 2, 4)]):
-                    cam.set_controls(exposure=e)
-                    time.sleep(0.6)
-                    be = brightness(cid)
-                    if be is not None and (best is None or abs(be - b_auto) < abs(best[1] - b_auto)):
-                        best = (e, be)
-                if best is not None:
-                    exp, b = best
-                    cam.set_controls(exposure=exp)
-                    time.sleep(0.4)
-                    ok = abs(b - b_auto) <= 0.2 * b_auto + 6
-            if ok:
-                self.update_camera_config_only(cid, {"auto_exposure": False, "exposure": exp,
-                                                     "white_balance": wb if wb and wb > 0 else None})
-                out[cid] = {"status": "locked", "exposure": exp, "white_balance": wb, "brightness": round(b, 1)}
-            else:
+
+        def back_to_auto(cid: str, cam, reason: str) -> None:
+            """Never leave a camera on a value we were only trying out."""
+            try:
                 cam.set_controls(auto_exposure=True, auto_wb=True)
-                self.update_camera_config_only(cid, {"auto_exposure": True, "exposure": None})
-                out[cid] = {"status": "unlocked", "reason": "kamera nie przyjmuje ręcznej ekspozycji — zostaje automatyczna"}
+            except Exception:  # noqa: BLE001 - e.g. the camera is reconnecting; open() applies the config
+                pass
+            self.update_camera_config_only(cid, {"auto_exposure": True, "exposure": None, "white_balance": None})
+            out[cid] = {"status": "unlocked", "reason": reason}
+
+        for cid, cam in cams:
+            try:
+                ctl = cam.get_controls()
+                for _ in range(30):  # switching modes can make a camera reconnect
+                    if ctl and brightness(cid) is not None:
+                        break
+                    time.sleep(0.3)
+                    ctl = cam.get_controls()
+                exp, wb = ctl.get("exposure"), ctl.get("white_balance")
+                wb = wb if wb and wb > 0 else None
+                b_auto = brightness(cid)
+                if exp is None or b_auto is None:
+                    back_to_auto(cid, cam, "brak obrazu z kamery")
+                    continue
+                cam.set_controls(auto_exposure=False, exposure=exp, white_balance=wb)
+                time.sleep(1.0)
+                st = stats(cid)
+                if st is None:
+                    back_to_auto(cid, cam, "brak obrazu po zablokowaniu ekspozycji")
+                    continue
+                b = st[0]
+                # The camera's own choice meters the whole, mostly dark picture and can burn
+                # out the lit board (ring colours fade to white, the board is not found), and
+                # manual steps are coarse. Walk at most 3 steps towards highlights that are
+                # bright but not clipped; stop as soon as a step has no effect.
+                for _ in range(3):
+                    if 120 <= st[1] <= 235:
+                        break
+                    up = st[1] < 120
+                    nxt = (exp + 1 if up else exp - 1) if exp <= 0 else (exp * 2 if up else exp * 0.5)
+                    cam.set_controls(exposure=nxt)
+                    time.sleep(0.6)
+                    st2 = stats(cid)
+                    moved = st2 is not None and (st2[0] > st[0] * 1.08 if up else st2[0] < st[0] * 0.92)
+                    if not moved:
+                        cam.set_controls(exposure=exp)  # the camera ignores the value
+                        break
+                    exp, st, b = nxt, st2, st2[0]
+                self.update_camera_config_only(cid, {"auto_exposure": False, "exposure": exp, "white_balance": wb})
+                out[cid] = {"status": "locked", "exposure": exp, "white_balance": wb, "brightness": round(b, 1)}
+            except Exception as exc:  # noqa: BLE001
+                log.exception("auto exposure failed", extra={"camera": cid})
+                back_to_auto(cid, cam, f"błąd kamery: {type(exc).__name__}")
         if self.engine is not None:
             self.engine.forget_images()
         log.info("auto exposure", extra={"result": out})
@@ -383,8 +432,13 @@ class VisionService:
     def detect_board(self, camera_id: str, method: str = "auto", points: dict[str, list[float]] | None = None,
                      hint: list[float] | None = None, azimuth: float | None = None) -> dict:
         img = self.averaged_frame(camera_id)
+        for _ in range(25):  # a camera that was just reconfigured needs a moment
+            if img is not None:
+                break
+            time.sleep(0.2)
+            img = self.averaged_frame(camera_id)
         if img is None:
-            raise RuntimeError("no frames from this camera")
+            raise RuntimeError("Brak obrazu z tej kamery.")
         intr = self.store.intrinsics(camera_id)
         cam_cfg = self.camera(camera_id)
         prior = azimuth if azimuth is not None else cam_cfg.mount.azimuth_deg

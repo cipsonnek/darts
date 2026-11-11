@@ -18,11 +18,32 @@ export default function Cameras() {
   const [edit, setEdit] = useState<CameraInfo | null>(null);
   const [probe, setProbe] = useState<any[] | null>(null);
   const doProbe = useAction(async () => setProbe(await api.get<any[]>("/api/cameras/probe")));
+  const [expMsg, setExpMsg] = useState<string | null>(null);
+  const doExposure = useAction(async (lock: boolean) => {
+    setExpMsg(null);
+    const r = await api.post<Record<string, { status: string; reason?: string }>>(`/api/cameras/auto-exposure?lock=${lock}`);
+    const v = Object.values(r);
+    const locked = v.filter((x) => x.status === "locked").length;
+    const failed = v.filter((x) => x.status === "unlocked");
+    setExpMsg(!lock ? "Jasność automatyczna włączona. Poczekaj kilka sekund, aż obraz się ustabilizuje."
+      : failed.length ? `Zablokowano ${locked} z ${v.length} kamer. Pozostałe zostają na automatycznej (${failed[0].reason}).`
+        : `Jasność zablokowana na ${locked} kamerach. Sprawdź podglądy: tarcza ma być wyraźna, nie prześwietlona.`);
+    reload();
+  });
 
   return (
     <div>
       <PageHeader title="Kamery" subtitle="Podgląd jest kodowany na serwerze w zmniejszonym rozmiarze; pełne klatki nie opuszczają silnika wizji."
-        actions={<Button onClick={() => doProbe.run()} disabled={doProbe.busy}>Wykryj urządzenia</Button>} />
+        actions={<>
+          <Button onClick={() => doExposure.run(false)} disabled={doExposure.busy} title="Kamery same dobierają jasność (także ratunek, gdy obraz jest za ciemny lub prześwietlony)">Jasność: automatyczna</Button>
+          <Button onClick={() => doExposure.run(true)} disabled={doExposure.busy} title="Kamery dobierają jasność raz, potem jest blokowana, żeby obraz nie pływał w trakcie gry">Jasność: zablokuj</Button>
+          <Button onClick={() => doProbe.run()} disabled={doProbe.busy}>Wykryj urządzenia</Button>
+        </>} />
+      {(doExposure.busy || expMsg) && (
+        <div className="mb-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm">
+          {doExposure.busy ? "Ustawiam jasność kamer (kilka sekund)…" : expMsg}
+        </div>
+      )}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Tabs value={view} onChange={setView} items={[{ id: "raw", label: "Surowy" }, { id: "undistorted", label: "Bez zniekształceń" }, { id: "topdown", label: "Z góry" }]} />
         <div className="flex flex-wrap gap-1">
@@ -34,7 +55,7 @@ export default function Cameras() {
           ))}
         </div>
       </div>
-      <ErrorNote error={error ?? doProbe.error} />
+      <ErrorNote error={error ?? doProbe.error ?? doExposure.error} />
       {cams && cams.some((c) => c.enabled && !c.calibration.pose) && (
         <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--warn)]/50 bg-[color-mix(in_oklab,var(--warn)_12%,transparent)] px-4 py-3">
           <span className="flex-1 font-semibold text-[var(--warn)]">

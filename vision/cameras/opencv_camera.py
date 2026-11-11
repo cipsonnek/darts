@@ -102,7 +102,7 @@ class OpenCVCamera(Camera):
 
     def set_controls(self, **controls: Any) -> dict[str, Any]:
         cap = self._cap
-        if cap is None:
+        if cap is None or not cap.isOpened():
             return {}
         windows = platform.system() == "Windows"
         if "auto_exposure" in controls and controls["auto_exposure"] is not None:
@@ -126,7 +126,7 @@ class OpenCVCamera(Camera):
 
     def get_controls(self) -> dict[str, Any]:
         cap = self._cap
-        if cap is None:
+        if cap is None or not cap.isOpened():  # closed while reconnecting
             return {}
         return {
             "width": int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),

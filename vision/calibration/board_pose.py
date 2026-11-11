@@ -107,11 +107,13 @@ def calibrate_board(
 
     grade, checks = grade_calibration(refined, config, source)
     problem = model_scale_problem(image, refined.camera, board, config.board_detection)
-    if problem is not None:
+    if problem in ("too_small", "maybe_small") and method == "auto" and not assume_triple:
         # Wires coincide on the double and triple rings, so the edge checks cannot see this.
-        if problem == "too_small" and method == "auto" and not assume_triple:
-            return calibrate_board(image, config, camera_id, intrinsics, azimuth_prior_deg, hint_px,
-                                   assume_triple=True)
+        retry = calibrate_board(image, config, camera_id, intrinsics, azimuth_prior_deg, hint_px,
+                                assume_triple=True)
+        if retry.ok:
+            return retry
+    if problem in ("too_small", "too_big"):
         log.warning("board calibration rejected: wrong size", extra={"camera": camera_id, "problem": problem})
         return BoardCalibration(False, grade="poor", checks=checks, detection=detection_summary,
                                 reason=("Siatka jest za mała: pierścień potrójny wzięty za podwójny. "

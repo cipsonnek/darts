@@ -45,9 +45,10 @@ def probe(vision=Depends(deps.vision)) -> list[dict]:
 
 
 @router.post("/cameras/auto-exposure", dependencies=[Depends(deps.require_admin)])
-def auto_exposure(vision=Depends(deps.vision)) -> dict:
-    """Find exposure and white balance for every camera once, then lock them."""
-    return vision.auto_exposure()
+def auto_exposure(lock: bool = False, vision=Depends(deps.vision)) -> dict:
+    """Exposure and white balance of every camera: automatic (default; also recovers a camera
+    stuck on a bad value), or with ``lock`` found once and then fixed."""
+    return vision.auto_exposure() if lock else vision.exposure_automatic()
 
 
 @router.get("/cameras/{camera_id}")
