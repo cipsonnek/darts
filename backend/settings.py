@@ -69,7 +69,13 @@ class AppSettings(BaseModel):
 
     @property
     def runtime_file(self) -> Path:
-        return self.path(self.data_dir) / "runtime.yaml"
+        return self.path(self.data_dir) / runtime_name(self.mode)
+
+
+def runtime_name(mode: str | None) -> str:
+    """Settings changed in the UI. The simulator keeps its own: its synthetic cameras must
+    never end up as the real board's cameras when both run on one machine."""
+    return "runtime-sim.yaml" if mode == "simulator" else "runtime.yaml"
 
 
 def config_layers() -> list[Path]:
@@ -84,7 +90,8 @@ def config_layers() -> list[Path]:
 def load_settings(extra: dict[str, Any] | None = None) -> AppSettings:
     data = load_yaml_layers(config_layers())
     data_dir = data.get("data_dir", "data")
-    runtime = (ROOT / data_dir / "runtime.yaml")
+    mode = os.environ.get("DARTSENSE_MODE") or (extra or {}).get("mode") or data.get("mode")
+    runtime = (ROOT / data_dir / runtime_name(mode))
     if runtime.exists():
         data = deep_merge(data, yaml.safe_load(runtime.read_text(encoding="utf-8")) or {})
     env = os.environ

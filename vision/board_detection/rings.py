@@ -69,9 +69,12 @@ class BoardDetection:
 def segment_ring_colors(image_bgr: np.ndarray, cfg: BoardDetectionConfig) -> tuple[np.ndarray, np.ndarray]:
     hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
     h, s, v = hsv[..., 0], hsv[..., 1], hsv[..., 2]
-    sat = (s >= cfg.min_saturation) & (v >= cfg.min_value)
-    red = sat & ((h <= cfg.red_hue_low_max) | (h >= cfg.red_hue_high_min))
-    green = sat & (h >= cfg.green_hue_min) & (h <= cfg.green_hue_max)
+    bright_end = float(np.percentile(v, 99))
+    red_min_v = max(cfg.min_value, cfg.red_min_value_fraction * bright_end)
+    red = ((s >= cfg.min_saturation) & (v >= red_min_v)
+           & ((h <= cfg.red_hue_low_max) | (h >= cfg.red_hue_high_min)))
+    green = ((s >= cfg.green_min_saturation) & (v >= cfg.min_value)
+             & (h >= cfg.green_hue_min) & (h <= cfg.green_hue_max))
     k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
     red = cv2.morphologyEx(red.astype(np.uint8) * 255, cv2.MORPH_OPEN, k)
     green = cv2.morphologyEx(green.astype(np.uint8) * 255, cv2.MORPH_OPEN, k)

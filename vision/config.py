@@ -108,6 +108,12 @@ class BoardDetectionConfig(BaseModel):
     green_hue_max: int = 95
     min_saturation: int = 70
     min_value: int = 30
+    # On the first real board the green ring read at saturation 71-96: right on the limit.
+    green_min_saturation: int = 45
+    # Black beds and wood under warm light share the red hue (10-11) and are strongly
+    # saturated, only darker: ring red read at 180-240, black beds 50, wood 45-100.
+    # Red must be at least this fraction of the picture's bright end (white beds, lights).
+    red_min_value_fraction: float = 0.45
     min_ring_area_fraction: float = 0.002
     max_pnp_rms_px: float = 4.0
 

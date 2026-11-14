@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -284,3 +285,17 @@ def test_board_on_a_wooden_table_is_found(world, sim_rig, board, cid) -> None:
                           azimuth_prior_deg=round(az / 30) * 30)
     assert res.ok, res.reason
     assert board_shift_mm(cam, res.camera) < 0.5
+
+
+REAL = Path(__file__).parent / "data" / "real_board"
+
+
+@pytest.mark.parametrize("cid, stands_at_deg", [("cam1", 0), ("cam2", 126), ("cam3", 234)])
+def test_real_board_on_a_wooden_table(cid, stands_at_deg) -> None:
+    """Pictures from the first real rig: board on orange wood under warm light, darts in it.
+    Black beds and wood share the red hue there; only the brightness tells the ring apart."""
+    img = cv2.imread(str(REAL / f"{cid}.jpg"))
+    res = calibrate_board(img, VisionConfig(), cid, azimuth_prior_deg=stands_at_deg)
+    assert res.ok, res.reason
+    az = res.derived["camera_azimuth_deg"]
+    assert abs((az - stands_at_deg + 180) % 360 - 180) < 15, az

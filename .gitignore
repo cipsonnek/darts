@@ -4,7 +4,7 @@ __pycache__/
 .pytest_cache/
 node_modules/
 dist/
-data/
+/data/
 recordings/
 logs/
 configs/local.yaml

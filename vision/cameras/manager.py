@@ -106,8 +106,26 @@ class CameraManager:
             self._listeners.remove(fn)
 
     def reconfigure(self, config: CameraConfig) -> None:
-        """Replace a camera's configuration and restart its worker."""
+        """Replace a camera's configuration. The worker is restarted only when the device or
+        the picture format changes: restarting a USB camera behind a shared adapter can drop
+        it (or another camera) off the bus, and Windows then renumbers the rest. Where it
+        stands, its name, rotation and exposure are applied to the running camera."""
         with self._lock:
+            old_cfg = self._configs.get(config.id)
+            running = self._workers.get(config.id)
+            capture = ("enabled", "source", "width", "height", "fps")
+            if (running is not None and old_cfg is not None and config.enabled
+                    and all(getattr(old_cfg, k) == getattr(config, k) for k in capture)):
+                self._configs[config.id] = config
+                running.camera.config = config
+                controls = ("auto_exposure", "exposure", "gain", "white_balance", "autofocus", "focus")
+                changed = {k: getattr(config, k) for k in controls if getattr(old_cfg, k) != getattr(config, k)}
+                if changed:
+                    try:
+                        running.camera.set_controls(**changed)
+                    except Exception:  # noqa: BLE001 - reconnecting: open() applies the config
+                        log.warning("camera controls not applied", extra={"camera": config.id})
+                return
             old = self._workers.pop(config.id, None)
             if old is not None:
                 old.stop()
