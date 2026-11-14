@@ -56,43 +56,49 @@ class ChangeResult:
 
 
 def roi_bbox(roi: np.ndarray) -> tuple[int, int, int, int]:
-    ys, xs = np.nonzero(roi)
-    if len(xs) == 0:
+    x, y, w, h = cv2.boundingRect(roi if roi.dtype == np.uint8 else (roi > 0).astype(np.uint8))
+    if w == 0 or h == 0:
         return 0, 0, roi.shape[1], roi.shape[0]
-    return int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1
+    return x, y, x + w, y + h
 
 
 def _normalise(ref: np.ndarray, cur: np.ndarray, roi: np.ndarray) -> np.ndarray:
-    """Scale ``ref`` so its brightness matches ``cur`` (per channel, smooth field)."""
-    sel = roi > 0
-    out = ref.astype(np.float32)
-    curf = cur.astype(np.float32)
+    """Scale ``ref`` so its brightness matches ``cur`` (per channel, smooth field).
+
+    The gains are medians: every third pixel in each direction gives the same value as all
+    of them at a ninth of the cost (this runs on every throw)."""
+    sel = roi[::3, ::3] > 0
+    a_s = cur[::3, ::3][sel].astype(np.float32)
+    b_s = ref[::3, ::3][sel].astype(np.float32)
+    gain = np.ones(3, np.float32)
     # Global per-channel gain from bright-enough pixels.
     for c in range(3):
-        a = curf[..., c][sel]
-        b = out[..., c][sel]
+        a, b = a_s[:, c], b_s[:, c]
         ok = (a > 20) & (b > 20)
         if ok.sum() > 100:
-            g = float(np.median(a[ok] / b[ok]))
-            out[..., c] *= np.clip(g, 0.3, 3.0)
+            gain[c] = np.clip(float(np.median(a[ok] / b[ok])), 0.3, 3.0)
+    out = ref.astype(np.float32)
+    out *= gain
     # Residual smooth gain field (uneven lighting change), robust to small objects.
-    ga = cv2.cvtColor(curf, cv2.COLOR_BGR2GRAY)
-    gb = cv2.cvtColor(out, cv2.COLOR_BGR2GRAY)
-    small = (max(1, ga.shape[1] // 16), max(1, ga.shape[0] // 16))
-    ra = cv2.resize(ga, small, interpolation=cv2.INTER_AREA)
-    rb = cv2.resize(gb, small, interpolation=cv2.INTER_AREA)
+    h, w = cur.shape[:2]
+    small = (max(1, w // 16), max(1, h // 16))
+    ra = cv2.cvtColor(cv2.resize(cur, small, interpolation=cv2.INTER_AREA).astype(np.float32), cv2.COLOR_BGR2GRAY)
+    rb = cv2.cvtColor(cv2.resize(ref, small, interpolation=cv2.INTER_AREA).astype(np.float32) * gain,
+                      cv2.COLOR_BGR2GRAY)
     ratio = np.clip((ra + 4.0) / (rb + 4.0), 0.5, 2.0).astype(np.float32)
     ratio = cv2.medianBlur(ratio, 5)
-    field = cv2.resize(ratio, (ga.shape[1], ga.shape[0]), interpolation=cv2.INTER_LINEAR)
-    return out * field[..., None]
+    field = cv2.resize(ratio, (w, h), interpolation=cv2.INTER_LINEAR)
+    out *= field[..., None]
+    return out
 
 
 def _magnitude(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    return np.max(np.abs(a.astype(np.float32) - b.astype(np.float32)), axis=2)
+    return _chan_max(cv2.absdiff(a.astype(np.float32), b.astype(np.float32)))
 
 
 def _threshold(diff: np.ndarray, roi: np.ndarray, cfg: DetectionConfig) -> tuple[float, float]:
-    vals = diff[roi > 0]
+    # A median: every other pixel in each direction gives the same value, 4x cheaper.
+    vals = diff[::2, ::2][roi[::2, ::2] > 0]
     if vals.size == 0:
         return cfg.change_min_delta, 0.0
     # Median of a max-of-3 half-normal noise distribution ≈ 1.2σ.
@@ -323,11 +329,24 @@ def _match_to(src: np.ndarray, target: np.ndarray, region: np.ndarray) -> np.nda
 
 def occupancy(frame: np.ndarray, empty: np.ndarray, roi: np.ndarray, cfg: DetectionConfig
               ) -> tuple[np.ndarray, tuple[int, int, int, int], float]:
-    """Pixels that differ from the empty board (darts, hands...). Returns (mask, bbox, thr)."""
+    """Pixels that differ from the empty board (darts, hands...). Returns (mask, bbox, thr).
+
+    Used to tell whether a known dart is still there and whether the board is empty: worked
+    out at half resolution (a quarter of the pixels), the mask returned at full size."""
     x0, y0, x1, y1 = roi_bbox(roi)
     cur = frame[y0:y1, x0:x1]
     r = roi[y0:y1, x0:x1]
-    emp_n = _normalise(empty[y0:y1, x0:x1], cur, r)
-    d = cv2.GaussianBlur(_magnitude(cur.astype(np.float32), emp_n), (0, 0), 0.7)
+    emp = empty[y0:y1, x0:x1]
+    h, w = r.shape
+    if min(h, w) >= 64:
+        half = (w // 2, h // 2)
+        cur = cv2.resize(cur, half, interpolation=cv2.INTER_AREA)
+        emp = cv2.resize(emp, half, interpolation=cv2.INTER_AREA)
+        r = cv2.resize(r, half, interpolation=cv2.INTER_NEAREST)
+    emp_n = _normalise(emp, cur, r)
+    d = cv2.GaussianBlur(_magnitude(cur, emp_n), (0, 0), 0.7)
     thr, _ = _threshold(d, r, cfg)
-    return ((d > thr) & (r > 0)).astype(np.uint8) * 255, (x0, y0, x1, y1), thr
+    mask = ((d > thr) & (r > 0)).astype(np.uint8) * 255
+    if mask.shape != (h, w):
+        mask = cv2.resize(mask, (w, h), interpolation=cv2.INTER_NEAREST)
+    return mask, (x0, y0, x1, y1), thr

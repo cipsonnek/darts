@@ -284,6 +284,10 @@ class ValidationConfig(BaseModel):
 class PerformanceConfig(BaseModel):
     gpu_enabled: bool = False
     engine_tick_hz: float = Field(60.0, gt=0)
+    # OpenCV's worker threads. The images here are small enough that spreading each one over
+    # all 12 threads of a laptop CPU cost more in coordination than it saved: measured on the
+    # real rig, 4 lowered idle CPU and made the throw analysis faster. 0 = OpenCV's default.
+    opencv_threads: int = Field(4, ge=0)
     stream_default_width: int = 640
     stream_default_fps: float = 12.0
     stream_jpeg_quality: int = Field(75, ge=10, le=100)

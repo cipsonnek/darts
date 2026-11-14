@@ -69,6 +69,8 @@ class VisionService:
 
     # ------------------------------------------------------------------ lifecycle
     def start(self) -> None:
+        if self.cfg.performance.opencv_threads > 0:
+            cv2.setNumThreads(self.cfg.performance.opencv_threads)
         if self.simulator:
             self.world = self._build_world()
         else:

@@ -173,23 +173,7 @@ def coverage_ransac(pts: np.ndarray, weights: np.ndarray, rng: np.random.Generat
     sgap = max_gap_bins if sp is pts else max(1, max_gap_bins // 2)
     sband = band if sp is pts else band + 1.0
     pairs = rng.choice(ns, size=(iterations, 2), replace=True, p=p)
-    best = None
-    best_score = -1.0
-    for i, j in pairs:
-        d = sp[j] - sp[i]
-        L = math.hypot(d[0], d[1])
-        if L < 15.0:
-            continue
-        u = d / L
-        rel = sp - sp[i]
-        inb = np.abs(rel[:, 0] * -u[1] + rel[:, 1] * u[0]) <= sband
-        if inb.sum() < 6:
-            continue
-        r_in = rel[inb]
-        cov, lo, hi = _longest_run(r_in[:, 0] * u[0] + r_in[:, 1] * u[1], sbin, sgap)
-        if cov > best_score:
-            best_score = cov
-            best = (sp[i].copy(), u, lo, hi)
+    best = _best_hypothesis(sp, pairs, sband, sbin, sgap)
     if best is None:
         return None
     origin, u, lo, hi = best
@@ -210,6 +194,66 @@ def coverage_ransac(pts: np.ndarray, weights: np.ndarray, rng: np.random.Generat
     inb = np.abs(rel @ line.normal) <= band
     cov, lo, hi = _longest_run(rel[inb] @ u, bin_px, max_gap_bins)
     return line, cov, lo, hi
+
+
+def _best_hypothesis(sp: np.ndarray, pairs: np.ndarray, band: float, bin_px: float, max_gap: int
+                     ) -> tuple[np.ndarray, np.ndarray, float, float] | None:
+    """The hypothesis (line through sp[i] and sp[j]) with the longest covered run, as
+    (origin, direction, s_lo, s_hi). Same result as scoring each pair with _longest_run in
+    turn (ties go to the earlier pair), but all pairs are scored together with array
+    operations: a Python loop over hundreds of pairs cost most of a throw's analysis."""
+    d = sp[pairs[:, 1]] - sp[pairs[:, 0]]
+    L = np.hypot(d[:, 0], d[:, 1])
+    usable = np.nonzero(L >= 15.0)[0]
+    if usable.size == 0:
+        return None
+    best_key = None
+    # Pairs in batches: keeps the (pairs x points) arrays to a few MB.
+    batch = max(1, int(2_000_000 // max(1, len(sp))))
+    for b0 in range(0, usable.size, batch):
+        ks = usable[b0:b0 + batch]
+        u = d[ks] / L[ks, None]
+        rel_x = sp[None, :, 0] - sp[pairs[ks, 0], 0][:, None]
+        rel_y = sp[None, :, 1] - sp[pairs[ks, 0], 1][:, None]
+        inb = np.abs(rel_x * -u[:, 1:2] + rel_y * u[:, 0:1]) <= band
+        enough = inb.sum(1) >= 6
+        if not enough.any():
+            continue
+        ks, u, inb = ks[enough], u[enough], inb[enough]
+        rel_x, rel_y = rel_x[enough], rel_y[enough]
+        s = rel_x * u[:, 0:1] + rel_y * u[:, 1:2]
+        rows, cols = np.nonzero(inb)
+        raw = np.floor(s[rows, cols] / bin_px).astype(np.int64)
+        lo_row = np.full(len(ks), np.iinfo(np.int64).max)
+        np.minimum.at(lo_row, rows, raw)
+        rel_bin = raw - lo_row[rows]
+        width = int(rel_bin.max()) + 1
+        occ = np.zeros((len(ks), width), dtype=bool)
+        occ[rows, rel_bin] = True
+        r_occ, c_occ = np.nonzero(occ)  # row-major: by row, then by bin
+        new_run = np.r_[True, (r_occ[1:] != r_occ[:-1]) | (np.diff(c_occ) > max_gap)]
+        starts = np.nonzero(new_run)[0]
+        ends = np.r_[starts[1:] - 1, len(c_occ) - 1]
+        counts = ends - starts + 1
+        spans = c_occ[ends] - c_occ[starts] + 1
+        # A dart covers its axis densely (gaps only where it is occluded or low-contrast);
+        # scattered noise along a line does not. Coverage is discounted below 60 % fill.
+        score = counts * np.minimum(1.0, (counts / spans) / 0.6) * bin_px
+        run_row = r_occ[starts]
+        # Best run of each row: highest score, the first run on a tie (as argmax).
+        order = np.lexsort((np.arange(len(score)), -score, run_row))
+        first = np.r_[True, run_row[order][1:] != run_row[order][:-1]]
+        top = order[first]
+        for t in top:
+            k = int(ks[run_row[t]])
+            key = (float(score[t]), -k)
+            if best_key is None or key > best_key:
+                row = run_row[t]
+                lo_b = c_occ[starts[t]] + lo_row[row]
+                hi_b = c_occ[ends[t]] + lo_row[row] + 1
+                best_key = key
+                best = (sp[pairs[k, 0]].copy(), u[row].copy(), float(lo_b * bin_px), float(hi_b * bin_px))
+    return None if best_key is None else best
 
 
 def _longest_run(s: np.ndarray, bin_px: float, max_gap: int) -> tuple[float, float, float]:

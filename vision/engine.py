@@ -128,6 +128,7 @@ class VisionEngine:
         self.config = config
         self.board = BoardGeometry(config.board)
         self.cameras: dict[str, CameraContext] = {cid: CameraContext(cid, m) for cid, m in camera_models.items()}
+        self._occ_cache: dict[tuple, np.ndarray] = {}
         self.state = EngineState.STARTING
         self.board_state = BoardState()
         self.stats = EngineStats()
@@ -367,6 +368,7 @@ class VisionEngine:
 
     def _analyse_settled(self, frames: dict[str, Frame], ts: float, events: list[VisionEvent]) -> None:
         self.stats.settles += 1
+        self._occ_cache: dict[tuple, np.ndarray] = {}
         cfg = self.config
         cams = {cid: ctx for cid, ctx in self.cameras.items()
                 if ctx.model is not None and ctx.reference is not None and cid in frames}
@@ -461,6 +463,20 @@ class VisionEngine:
             if ctx is not None:
                 ctx.reference = f.image.copy()
 
+    def _occupancy(self, cid: str, image: np.ndarray, ctx: CameraContext) -> np.ndarray:
+        """What differs from the empty board, full-frame mask. Several steps of one analysis
+        compare the same picture with the same empty board: computed once."""
+        key = (cid, id(image), id(ctx.empty))
+        hit = self._occ_cache.get(key)
+        if hit is not None:
+            return hit
+        occ, bbox, _ = occupancy(image, ctx.empty, ctx.roi, self.config.detection)
+        full = np.zeros(image.shape[:2], np.uint8)
+        x0, y0, x1, y1 = bbox
+        full[y0:y1, x0:x1] = occ
+        self._occ_cache[key] = full
+        return full
+
     def _refresh_empty(self, frames: dict[str, Frame], cams: dict[str, CameraContext]) -> None:
         """After a confirmed takeout the board is empty: refresh the empty reference unless
         the view still differs from it substantially (then something is left on the board)."""
@@ -468,7 +484,7 @@ class VisionEngine:
             if ctx.empty is None:
                 ctx.empty = frames[cid].image.copy()
                 continue
-            occ, _, _ = occupancy(frames[cid].image, ctx.empty, ctx.roi, self.config.detection)
+            occ = self._occupancy(cid, frames[cid].image, ctx)
             frac = np.count_nonzero(occ) / max(1, np.count_nonzero(ctx.roi))
             if frac < 0.002:
                 ctx.empty = frames[cid].image.copy()
@@ -477,7 +493,6 @@ class VisionEngine:
         if len(self.board_state) == 0:
             return []
         cfg = self.config
-        occ_cache: dict[str, np.ndarray] = {}
         removed = []
         for dart in self.board_state.darts:
             votes, total = 0, 0
@@ -485,18 +500,13 @@ class VisionEngine:
                 ctx = cams.get(cid)
                 if ctx is None or ctx.empty is None:
                     continue
-                if cid not in occ_cache:
-                    occ, bbox, _ = occupancy(frames[cid].image, ctx.empty, ctx.roi, cfg.detection)
-                    full = np.zeros(frames[cid].image.shape[:2], np.uint8)
-                    x0, y0, x1, y1 = bbox
-                    full[y0:y1, x0:x1] = occ
-                    occ_cache[cid] = full
+                occ = self._occupancy(cid, frames[cid].image, ctx)
                 xs, ys = fp.pixel_coords()
-                H, W = occ_cache[cid].shape
+                H, W = occ.shape
                 ok = (xs >= 0) & (xs < W) & (ys >= 0) & (ys < H)
                 if ok.sum() < 10:
                     continue
-                still = occ_cache[cid][ys[ok], xs[ok]] > 0
+                still = occ[ys[ok], xs[ok]] > 0
                 total += 1
                 if 1.0 - still.mean() >= cfg.tracking.removal_pixel_fraction:
                     votes += 1
@@ -708,13 +718,21 @@ class VisionEngine:
 
     def _loop(self) -> None:
         period = 1.0 / self.config.performance.engine_tick_hz
+        # Cameras are not in step: a set is processed when every camera has a new frame
+        # (or the first new one has waited long enough), not whenever any one has. Processing
+        # on each camera's frame separately did the work two to three times over.
+        max_wait = 0.05
+        first_fresh: float | None = None
         while not self._stop.is_set():
             start = time.perf_counter()
             fs = self._manager.frameset()
             fresh = {cid: f for cid, f in fs.frames.items() if f.index != self._last_indices.get(cid)}
-            if fresh:
+            if fresh and first_fresh is None:
+                first_fresh = start
+            if fresh and (len(fresh) == len(fs.frames) or start - first_fresh >= max_wait):
                 for cid, f in fresh.items():
                     self._last_indices[cid] = f.index
+                first_fresh = None
                 self.process_frameset(fs.frames)
             delay = period - (time.perf_counter() - start)
             if delay > 0:

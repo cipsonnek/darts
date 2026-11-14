@@ -62,20 +62,27 @@ def ransac_line(
     rng = rng or np.random.default_rng(0)
     w = np.ones(n) if weights is None else np.asarray(weights, dtype=np.float64)
     p = w / w.sum()
-    best_score = -1.0
+    # Draw the pairs as before (the generator is shared with later steps), then score them
+    # all at once; the first pair with the highest score wins, as in a loop.
+    pairs = np.array([rng.choice(n, size=2, replace=False, p=p) for _ in range(iterations)]).reshape(-1, 2)
     best_mask: np.ndarray | None = None
-    for _ in range(iterations):
-        i, j = rng.choice(n, size=2, replace=False, p=p)
-        d = pts[j] - pts[i]
-        norm = np.hypot(*d)
-        if norm < 1e-6:
-            continue
-        normal = np.array([-d[1], d[0]]) / norm
-        dist = np.abs((pts - pts[i]) @ normal)
-        mask = dist < threshold
-        score = float(w[mask].sum())
-        if score > best_score:
-            best_score, best_mask = score, mask
+    d = pts[pairs[:, 1]] - pts[pairs[:, 0]]
+    norm = np.hypot(d[:, 0], d[:, 1])
+    ok = norm >= 1e-6
+    if ok.any():
+        pairs, d, norm = pairs[ok], d[ok], norm[ok]
+        nx, ny = -d[:, 1] / norm, d[:, 0] / norm
+        batch = max(1, int(2_000_000 // n))
+        best_score = -1.0
+        for b0 in range(0, len(pairs), batch):
+            sl = slice(b0, b0 + batch)
+            o = pts[pairs[sl, 0]]
+            dist = np.abs((pts[None, :, 0] - o[:, 0:1]) * nx[sl, None] + (pts[None, :, 1] - o[:, 1:2]) * ny[sl, None])
+            masks = dist < threshold
+            scores = masks @ w
+            k = int(np.argmax(scores))
+            if scores[k] > best_score:
+                best_score, best_mask = float(scores[k]), masks[k].copy()
     if best_mask is None or best_mask.sum() < min_inliers:
         return None
     line = fit_line(pts[best_mask], w[best_mask])
