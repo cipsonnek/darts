@@ -252,11 +252,16 @@ class VisionEngine:
                 sy = size[1] / ctx.model.image_size[1]
                 ctx.model = ctx.model.scaled(sx, sy)
             ctx.roi = board_roi(ctx.model, self.board) if ctx.model is not None else None
-            ctx.motion = MotionDetector(self.config.motion, ctx.roi, size)
+            ctx.motion = MotionDetector(self.config.motion, self._motion_roi(ctx), size)
             ctx.reference = None
         elif ctx.roi is None and ctx.model is not None:
             ctx.roi = board_roi(ctx.model, self.board)
-            ctx.motion = MotionDetector(self.config.motion, ctx.roi, size)
+            ctx.motion = MotionDetector(self.config.motion, self._motion_roi(ctx), size)
+
+    def _motion_roi(self, ctx: CameraContext) -> np.ndarray | None:
+        if ctx.model is None:
+            return None
+        return board_roi(ctx.model, self.board, self.config.motion.roi_height_mm)
 
     def process_frameset(self, frames: dict[str, Frame]) -> list[VisionEvent]:
         """Feed one set of (approximately simultaneous) frames. Returns emitted events."""

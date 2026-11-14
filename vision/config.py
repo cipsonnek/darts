@@ -157,6 +157,12 @@ class MotionConfig(BaseModel):
     motion_area_fraction: float = 0.0004
     # The scene must be motion-free for this long before it counts as settled.
     settle_time_ms: int = 280
+    # Motion is watched on the board face and this thin layer above it: where a dart lands
+    # and wobbles, and where a hand reaches for darts. The analysis region goes up to the
+    # flights (~170 mm), but with a board lying flat and cameras looking at a low angle
+    # that height reaches the room behind (a lamp, people): on the first real rig all false
+    # "counting a throw" came from there.
+    roi_height_mm: float = Field(40.0, ge=0)
     # The settled scene is analysed as the mean of up to this many still frames per camera:
     # averaging N frames divides sensor and compression noise by ~sqrt(N), which matters
     # a lot for webcams running high gain in dim rooms.
