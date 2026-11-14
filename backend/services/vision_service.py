@@ -27,6 +27,7 @@ from vision.calibration.intrinsics import IntrinsicsCalibrator, IntrinsicsResult
 from vision.calibration.store import CalibrationStore
 from vision.cameras.base import Frame
 from vision.cameras.manager import CameraManager
+from vision.cameras.dshow_devices import VideoDevice, list_video_devices
 from vision.cameras.opencv_camera import probe_devices
 from vision.config import CameraConfig
 from vision.diagnostics.overlays import LAYERS, draw_board, draw_debug, topdown_view, undistort_image
@@ -70,6 +71,8 @@ class VisionService:
     def start(self) -> None:
         if self.simulator:
             self.world = self._build_world()
+        else:
+            self._pin_devices()
         self.manager = CameraManager(self.cfg.cameras, world=self.world)
         models = {c.id: self.store.camera_model(c.id) for c in self.cfg.cameras if c.enabled}
         self.engine = VisionEngine(self.cfg, models)
@@ -172,6 +175,51 @@ class VisionService:
             acc += f.image
         return (acc / len(hist)).round().astype(np.uint8)
 
+    def _pin_devices(self) -> None:
+        """Tie each USB camera to its physical device (path), once.
+
+        Windows numbers cameras in the order it finds them and renumbers them when one is
+        plugged in or drops off USB; on a laptop its own webcam takes one of the numbers. A
+        camera without a path takes the device at its number, unless that is a built-in
+        webcam or a device another camera already has: then the first free board camera."""
+        cams = [c for c in self.cfg.cameras if c.enabled and c.source.type == "opencv"]
+        if not any(not c.source.device_path for c in cams):
+            return
+        devices = list_video_devices()
+        if not devices:
+            return
+        used = {c.source.device_path.lower() for c in cams if c.source.device_path}
+
+        def at(c) -> VideoDevice | None:
+            dev = c.source.device
+            return devices[int(dev)] if dev is not None and str(dev).isdigit() and int(dev) < len(devices) else None
+
+        def pin(c, d: VideoDevice) -> None:
+            used.add(d.path.lower())
+            self.update_camera_config_only(c.id, {"source": {**c.source.model_dump(), "device": d.index,
+                                                             "device_path": d.path}})
+
+        todo = [c for c in cams if not c.source.device_path]
+        # First every camera whose number shows a usable device keeps it, then the rest
+        # share what is left: one webcam must not shift all the cameras after it.
+        rest = []
+        for c in todo:
+            d = at(c)
+            if d is not None and d.path and not d.built_in and d.path.lower() not in used:
+                pin(c, d)
+            else:
+                rest.append(c)
+        for c in rest:
+            d = next((x for x in devices if x.path and not x.built_in and x.path.lower() not in used), None)
+            if d is None:
+                continue
+            was = at(c)
+            log.warning("camera moved to another device", extra={
+                "camera": c.id, "was": c.source.device, "was_name": was.name if was else None, "now": d.index})
+            pin(self.camera(c.id), d)
+        log.info("camera devices", extra={"devices": [f"{d.index}: {d.name}" for d in devices],
+                                          "cameras": {c.id: c.source.device for c in self.cfg.cameras}})
+
     def update_camera(self, camera_id: str, patch: dict[str, Any]) -> dict:
         cur = self.camera(camera_id)
         data = cur.model_dump()
@@ -180,6 +228,13 @@ class VisionService:
                 data[k].update(v)
             else:
                 data[k] = v
+        src = patch.get("source") if isinstance(patch.get("source"), dict) else None
+        if src and "device" in src and "device_path" not in src and not self.simulator:
+            # Staff picked a device by today's number: remember which physical camera it is.
+            dev = src["device"]
+            devices = list_video_devices()
+            hit = devices[int(dev)] if dev is not None and str(dev).isdigit() and int(dev) < len(devices) else None
+            data["source"]["device_path"] = hit.path if hit and hit.path else None
         new = CameraConfig.model_validate(data)
         idx = [c.id for c in self.cfg.cameras].index(camera_id)
         self.cfg.cameras[idx] = new
@@ -335,9 +390,16 @@ class VisionService:
         if self.simulator:
             return []
         found = {e["index"]: e for e in probe_devices(8)}
+        names = list_video_devices()
+        for d in names:
+            entry = found.setdefault(d.index, {"index": d.index, "opened": False, "frames": 0})
+            entry.update({"name": d.name, "built_in": d.built_in})
+        by_path = {d.path.lower(): d.index for d in names if d.path}
         health = {h["camera_id"]: h for h in self.manager.health()} if self.manager else {}
         for c in self.cfg.cameras:
             dev = c.source.device
+            if c.source.device_path and c.source.device_path.lower() in by_path:
+                dev = by_path[c.source.device_path.lower()]
             if c.source.type != "opencv" or not c.enabled or dev is None or not str(dev).isdigit():
                 continue
             entry = found.setdefault(int(dev), {"index": int(dev), "opened": False, "frames": 0})

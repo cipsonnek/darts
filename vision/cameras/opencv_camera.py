@@ -50,6 +50,13 @@ class OpenCVCamera(Camera):
                 raise CameraError(f"{self.camera_id}: rtsp source needs 'url'")
             return src.url, (cv2.CAP_FFMPEG if src.api == "auto" else api)
         dev = src.device
+        if src.device_path and api == cv2.CAP_DSHOW:
+            from vision.cameras.dshow_devices import index_for_path
+
+            dev = index_for_path(src.device_path)
+            if dev is None:
+                raise CameraError(f"{self.camera_id}: kamera odłączona od USB (nie ma jej na liście urządzeń)")
+            return dev, api
         if dev is None:
             raise CameraError(f"{self.camera_id}: opencv source needs 'device'")
         if isinstance(dev, str) and dev.isdigit():

@@ -55,6 +55,10 @@ class BoardConfig(BaseModel):
 class CameraSourceConfig(BaseModel):
     type: Literal["opencv", "rtsp", "replay", "synthetic"] = "opencv"
     device: int | str | None = None  # index or device path (opencv)
+    # Windows renumbers cameras whenever one is plugged in or drops off USB. The device path
+    # stays with the physical camera on its USB port; when set, it decides which camera
+    # opens and ``device`` is only today's number. Filled in automatically.
+    device_path: str | None = None
     url: str | None = None  # rtsp/http stream URL
     path: str | None = None  # replay directory
     api: Literal["auto", "dshow", "msmf", "v4l2", "gstreamer", "ffmpeg"] = "auto"

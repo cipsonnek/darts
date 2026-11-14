@@ -87,7 +87,8 @@ export default function Cameras() {
         <div className="flex flex-col gap-2 text-sm">
           {probe?.map((p) => (
             <div key={p.index} className="rounded-lg border border-[var(--border)] p-2">
-              <b>Urządzenie {p.index}</b>{" "}
+              <b>Urządzenie {p.index}</b>{p.name && <span className="text-[var(--muted)]"> ({p.name})</span>}{" "}
+              {p.built_in && <Badge tone="warn" className="mr-1">kamera laptopa — nie do tarczy</Badge>}
               {p.in_use_by ? <>— używa go <b>{p.in_use_by}</b> {p.in_use_connected ? <Badge tone="good">obraz OK</Badge> : <Badge tone="bad">brak obrazu</Badge>}</>
                 : <>— {p.width}×{p.height} · {p.backend} · klatek: {p.frames} <Badge tone="info">wolne</Badge></>}
               {p.likely_virtual_or_blank && <Badge tone="warn" className="ml-2">puste/wirtualne?</Badge>}
