@@ -250,6 +250,10 @@ class TrackingConfig(BaseModel):
     # A known dart whose per-camera pixels have mostly reverted to the empty board is
     # considered removed.
     removal_pixel_fraction: float = 0.6
+    # After a takeout seen happening, the empty-board picture is replaced when the board
+    # differs from it by less than this fraction of the board region (a few darts' worth:
+    # the old picture held darts left in the board at start-up).
+    empty_refresh_max_fraction: float = 0.05
     # The board must look empty for this long before it is declared clear.
     clear_confirm_ms: int = 500
     # At start-up the board is assumed empty and the first settled frames become the
@@ -304,6 +308,11 @@ class RecordingConfig(BaseModel):
     image_format: Literal["png", "jpg"] = "jpg"
     jpeg_quality: int = 95
     record_on_events_only: bool = False
+    # When the board saw a change but counted no dart (a missed dart, or a false alarm),
+    # keep that moment: pictures before and after, the empty board and the known darts, so
+    # it can be replayed and explained. Kept in <directory>/missed, the newest N.
+    save_missed_scenes: bool = True
+    missed_scenes_kept: int = Field(15, ge=1)
 
 
 class SimulatorConfig(BaseModel):

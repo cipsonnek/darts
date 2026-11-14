@@ -176,3 +176,68 @@ def test_idle_references_follow_slow_drift() -> None:
         events += eng.process_frameset(frames)
     assert not [e for e in events if e.type in (EventType.OBSTRUCTION, EventType.DART)]
     assert eng.state == EngineState.IDLE
+
+
+def test_missed_scene_is_kept_for_replay(tmp_path) -> None:
+    """A change with no dart counted is saved: pictures before/after, empty board, darts."""
+    import json
+    import time as _time
+
+    r = SimulationRunner(seed=2, fps=15, width=640, height=360, calibration="truth")
+    r.run(Scenario("one", [ScenarioStep(1.0, "throw", {"target": (0.0, 103.0)})], 4.0))
+    eng = r.engine
+    eng.scene_dir = tmp_path / "missed"
+    cams = {cid: ctx for cid, ctx in eng.cameras.items() if ctx.reference is not None}
+    frames = {cid: ctx.last_frame for cid, ctx in cams.items()}
+    changes = {cid: None for cid in cams}
+    from vision.dart_detection.change import compute_change
+    for cid, ctx in cams.items():
+        changes[cid] = compute_change(ctx.reference, frames[cid].image, ctx.roi, eng.config.detection, ctx.empty)
+    eng._keep_scene(frames, cams, changes, 12.5)
+    for _ in range(50):
+        found = list((tmp_path / "missed").glob("*/scene.json"))
+        if found:
+            break
+        _time.sleep(0.1)
+    assert found, "scene not written"
+    folder = found[0].parent
+    meta = json.loads(found[0].read_text(encoding="utf-8"))
+    assert len(meta["darts_on_board"]) == 1
+    for cid in cams:
+        assert (folder / f"{cid}_before.png").exists() and (folder / f"{cid}_after.png").exists()
+    assert (folder / "darts.pkl").exists()
+
+
+def test_darts_in_the_board_at_start_do_not_spoil_later_throws() -> None:
+    """The first real rig: the server started with darts in the board, so the empty-board
+    picture showed darts. Takeouts of later darts at the same spots were then not seen, the
+    list of darts went stale and new darts there were taken for those stale ones."""
+    r = SimulationRunner(seed=4, fps=15, width=960, height=540, calibration="truth")
+    eng = r.engine
+    state = {"done": False}
+
+    def start_up_with_darts(_frac: float) -> None:
+        # Once the two first darts are in, act as a fresh start: the "empty" picture shows
+        # them, and the engine knows of no darts.
+        if not state["done"] and r.clock.t >= 4.0:
+            for ctx in eng.cameras.values():
+                if ctx.last_frame is not None:
+                    ctx.empty = ctx.last_frame.image.copy()
+            eng.board_state.remove([d.dart_id for d in eng.board_state.darts])
+            state["done"] = True
+            state["events_before"] = len(r.events)
+
+    steps = [ScenarioStep(1.0, "throw", {"target": (0.0, 103.0)}),
+             ScenarioStep(2.2, "throw", {"target": (-60.0, 70.0)}),
+             ScenarioStep(5.0, "takeout", {}),
+             ScenarioStep(8.0, "throw", {"target": (1.5, 104.5)}),
+             ScenarioStep(10.0, "takeout", {}),
+             ScenarioStep(13.0, "throw", {"target": (-1.0, 102.0)})]
+    r.run(Scenario("start-with-darts", steps, 16.0), progress=start_up_with_darts)
+    assert state["done"]
+    later = r.events[state["events_before"]:]
+    darts = [e for e in later if e.type == EventType.DART]
+    assert len(darts) == 2, [e.type for e in later]
+    removed = [e for e in later if e.type == EventType.DARTS_REMOVED]
+    assert removed and removed[-1].data["board_clear"]
+    assert len(eng.board_state) == 1

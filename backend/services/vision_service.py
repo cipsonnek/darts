@@ -78,6 +78,8 @@ class VisionService:
         self.manager = CameraManager(self.cfg.cameras, world=self.world)
         models = {c.id: self.store.camera_model(c.id) for c in self.cfg.cameras if c.enabled}
         self.engine = VisionEngine(self.cfg, models)
+        if not self.simulator:
+            self.engine.scene_dir = self.settings.path(self.cfg.recording.directory) / "missed"
         self.engine.attach(self.manager)
         self.engine.subscribe(self._on_engine_event)
         self.manager.start()

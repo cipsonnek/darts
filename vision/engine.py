@@ -16,8 +16,10 @@ recordings and simulations behave identically and deterministically.
 
 from __future__ import annotations
 
+import json
 import logging
 import math
+import pickle
 import threading
 import time
 import uuid
@@ -25,6 +27,7 @@ from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Callable
 
 import cv2
@@ -134,6 +137,9 @@ class VisionEngine:
         self.stats = EngineStats()
         self._subs: list[Subscriber] = []
         self._lock = threading.RLock()
+        # Where missed scenes are kept (set by the service; None: not kept).
+        self.scene_dir: Path | None = None
+        self._last_dropped: list[dict] = []
         self._last_motion_ts: float | None = None
         self._motion_start_ts: float | None = None
         self._still_since: float | None = None
@@ -410,7 +416,7 @@ class VisionEngine:
         self._obstructed_since = None
 
         # 2. Removed darts (takeout).
-        removed = self._detect_removed(frames, cams)
+        removed = self._detect_removed(frames, cams, changes)
         if removed:
             gone = self.board_state.remove([d.dart_id for d in removed])
             clear = len(self.board_state) == 0
@@ -421,7 +427,11 @@ class VisionEngine:
         # 3. New darts. Not in the same still scene as a takeout: the player has to step back
         # before throwing, so that is a later scene. Here the spots the darts left are what
         # changed, and against an empty-board image taken in other light they read as new darts.
-        handling = (len(self.board_state) > 0 and self._motion_start_ts is not None
+        # Someone at the board for a while (pulling darts out) is not a throw. Also when no
+        # darts are known: darts left in the board at start-up are pulled out unseen, and the
+        # spots they leave differ from an "empty" picture that showed them just as a new
+        # dart differs from a truly empty one.
+        handling = (self._motion_start_ts is not None
                     and ts - self._motion_start_ts >= cfg.tracking.handling_min_motion_s
                     and self._peak_motion >= cfg.tracking.handling_min_peak_fraction)
         new_events = [] if removed or handling else self._detect_new(frames, cams, changes, ts)
@@ -433,6 +443,7 @@ class VisionEngine:
         if not new_events and not removed:
             if significant:
                 self.stats.unrecognized += 1
+                self._keep_scene(frames, cams, changes, ts)
                 events.append(self._emit(EventType.UNRECOGNIZED, ts, {
                     "cameras": significant,
                     "added_pixels": {cid: int(np.count_nonzero(changes[cid].added)) for cid in significant},
@@ -444,9 +455,58 @@ class VisionEngine:
 
         self._refresh_references(frames)
         if len(self.board_state) == 0 and removed:
-            self._refresh_empty(frames, cams)
+            self._refresh_empty(frames, cams, after_takeout=True)
             events.append(self._emit(EventType.BOARD_CLEAR, ts, {}))
+        elif len(self.board_state) == 0 and handling:
+            # Darts nobody knew of were pulled out: the board is empty now.
+            self._refresh_empty(frames, cams, after_takeout=True)
         self._set_state(EngineState.IDLE, ts, events)
+
+    def _keep_scene(self, frames: dict[str, Frame], cams: dict[str, CameraContext],
+                    changes: dict[str, ChangeResult], ts: float) -> None:
+        """Save a scene in which something changed but no dart was counted (see
+        RecordingConfig.save_missed_scenes). Written in the background."""
+        rec = self.config.recording
+        if self.scene_dir is None or not rec.save_missed_scenes:
+            return
+        stamp = time.strftime("%Y%m%d-%H%M%S") + f"-{int(ts * 1000) % 1000:03d}"
+        images = {}
+        for cid, ctx in cams.items():
+            images[f"{cid}_after.png"] = frames[cid].image.copy()
+            images[f"{cid}_before.png"] = ctx.reference.copy()
+            if ctx.empty is not None:
+                images[f"{cid}_empty.png"] = ctx.empty.copy()
+        meta = {
+            "time": stamp, "ts": ts,
+            "changes": {cid: {"added_px": int(np.count_nonzero(ch.added)), "threshold": ch.threshold,
+                              "noise_sigma": ch.noise_sigma, "shadow_pixels": ch.shadow_pixels}
+                        for cid, ch in changes.items()},
+            "candidates": {cid: [c.to_dict() for c in ctx.last_candidates] for cid, ctx in cams.items()},
+            "taken_for_known_darts": list(self._last_dropped),
+            "darts_on_board": [d.to_dict() for d in self.board_state.darts],
+            "motion_s": None if self._motion_start_ts is None else round(ts - self._motion_start_ts, 3),
+            "peak_motion": round(self._peak_motion, 5),
+        }
+        darts = pickle.dumps(self.board_state.darts)
+        folder = self.scene_dir / stamp
+
+        def write() -> None:
+            try:
+                folder.mkdir(parents=True, exist_ok=True)
+                for name, img in images.items():
+                    cv2.imwrite(str(folder / name), img)
+                (folder / "darts.pkl").write_bytes(darts)
+                (folder / "scene.json").write_text(json.dumps(meta, indent=1, default=str), encoding="utf-8")
+                old = sorted(p for p in self.scene_dir.iterdir() if p.is_dir())
+                for p in old[:-rec.missed_scenes_kept]:
+                    for f in p.iterdir():
+                        f.unlink()
+                    p.rmdir()
+                log.info("missed scene kept", extra={"folder": str(folder)})
+            except OSError as exc:
+                log.warning("missed scene not kept", extra={"error": str(exc)})
+
+        self._pool.submit(write)
 
     def _rebaseline(self, frames: dict[str, Frame], cams: dict[str, CameraContext], ts: float,
                     events: list[VisionEvent], obstructed: list[str]) -> None:
@@ -482,39 +542,58 @@ class VisionEngine:
         self._occ_cache[key] = full
         return full
 
-    def _refresh_empty(self, frames: dict[str, Frame], cams: dict[str, CameraContext]) -> None:
+    def _refresh_empty(self, frames: dict[str, Frame], cams: dict[str, CameraContext],
+                       after_takeout: bool = False) -> None:
         """After a confirmed takeout the board is empty: refresh the empty reference unless
-        the view still differs from it substantially (then something is left on the board)."""
+        the view still differs from it substantially (then something is left on the board).
+
+        The old reference itself can be wrong: taken at start-up with darts in the board, it
+        holds those darts, and the truly empty board differs from it at their spots. After
+        a takeout seen happening, a difference of a few darts' size is taken as that."""
+        limit = self.config.tracking.empty_refresh_max_fraction if after_takeout else 0.002
         for cid, ctx in cams.items():
             if ctx.empty is None:
                 ctx.empty = frames[cid].image.copy()
                 continue
             occ = self._occupancy(cid, frames[cid].image, ctx)
             frac = np.count_nonzero(occ) / max(1, np.count_nonzero(ctx.roi))
-            if frac < 0.002:
+            if frac < limit:
+                if frac >= 0.002:
+                    log.info("empty-board reference replaced", extra={"camera": cid, "differed": round(frac, 4)})
                 ctx.empty = frames[cid].image.copy()
 
-    def _detect_removed(self, frames: dict[str, Frame], cams: dict[str, CameraContext]) -> list[KnownDart]:
+    def _detect_removed(self, frames: dict[str, Frame], cams: dict[str, CameraContext],
+                        changes: dict[str, ChangeResult] | None = None) -> list[KnownDart]:
+        """Known darts that are gone. A camera votes "gone" when the dart's pixels now look
+        like the empty board, or when they changed since the last still scene (the dart was
+        pulled out of them). The second test does not depend on the empty-board picture,
+        which may itself show darts (taken at start-up with darts in the board)."""
         if len(self.board_state) == 0:
             return []
         cfg = self.config
+        changed_full = {cid: ch.full_mask("changed", frames[cid].image.shape[:2])
+                        for cid, ch in (changes or {}).items() if cid in cams}
         removed = []
         for dart in self.board_state.darts:
             votes, total = 0, 0
             for cid, fp in dart.footprints.items():
                 ctx = cams.get(cid)
-                if ctx is None or ctx.empty is None:
+                if ctx is None or (ctx.empty is None and cid not in changed_full):
                     continue
-                occ = self._occupancy(cid, frames[cid].image, ctx)
                 xs, ys = fp.pixel_coords()
-                H, W = occ.shape
+                H, W = frames[cid].image.shape[:2]
                 ok = (xs >= 0) & (xs < W) & (ys >= 0) & (ys < H)
                 if ok.sum() < 10:
                     continue
-                still = occ[ys[ok], xs[ok]] > 0
+                xs, ys = xs[ok], ys[ok]
                 total += 1
-                if 1.0 - still.mean() >= cfg.tracking.removal_pixel_fraction:
-                    votes += 1
+                gone = False
+                if ctx.empty is not None:
+                    occ = self._occupancy(cid, frames[cid].image, ctx)
+                    gone = 1.0 - (occ[ys, xs] > 0).mean() >= cfg.tracking.removal_pixel_fraction
+                if not gone and cid in changed_full:
+                    gone = (changed_full[cid][ys, xs] > 0).mean() >= cfg.tracking.removal_pixel_fraction
+                votes += gone
             if total > 0 and votes * 2 > total:
                 removed.append(dart)
         return removed
@@ -526,6 +605,7 @@ class VisionEngine:
         support: dict[str, np.ndarray] = {}
         occluders: dict[str, np.ndarray] = {}
         moved: list[tuple[KnownDart, str]] = []
+        self._last_dropped = []
         occ_masks = {cid: self.board_state.occluder_mask(cid, frames[cid].image.shape[:2]) for cid in cams}
 
         def _extract(cid: str) -> list[DartCandidate]:
@@ -546,6 +626,7 @@ class VisionEngine:
                 known = self.board_state.matches_footprint(cid, c)
                 if known is not None:
                     moved.append((known, cid))
+                    self._last_dropped.append({"camera": cid, "taken_for": known.dart_id, **c.to_dict()})
                     continue
                 keep.append(c)
             ctx.last_candidates = keep
