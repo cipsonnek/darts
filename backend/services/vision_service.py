@@ -612,6 +612,7 @@ class VisionService:
             raise KeyError("no pending calibration for this camera")
         res.camera = rotate_about_board(res.camera, steps * 2 * self.board.sector_angle_deg)
         res.derived = derived_parameters(res.camera, self.board)
+        res.turned_by_hand = True
         self.hub.publish("calibration", "board_detection", {"camera_id": camera_id, **res.to_dict()})
         return res.to_dict()
 
@@ -626,10 +627,13 @@ class VisionService:
         assert self.engine is not None
         self.engine.set_camera_model(camera_id, res.camera)
         self.hub.publish("calibration", "pose_saved", {"camera_id": camera_id, "grade": res.grade})
-        # The accepted pose says where the camera stands: keep it as the mounting angle, so
-        # the next automatic calibration picks the same rotation.
+        # Where the camera stands is what staff chose ("stands at number ..."). Only a result
+        # they turned by hand onto the printed numbers corrects it. Taking every accepted
+        # pose's angle as the new mounting let one rotated calibration (the board looks the
+        # same every 36 degrees) steer all later ones the same wrong way (first real rig:
+        # a camera at 15 kept calibrating as if at 16, 108 degrees off).
         az = res.derived.get("camera_azimuth_deg")
-        if az is not None:
+        if az is not None and getattr(res, "turned_by_hand", False):
             mount = self.camera(camera_id).mount.model_dump()
             self.update_camera_config_only(camera_id, {"mount": {**mount, "azimuth_deg": round(float(az)) % 360}})
         log.info("calibration saved", extra={"camera": camera_id, "grade": res.grade, "method": res.method,
