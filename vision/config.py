@@ -250,6 +250,10 @@ class TrackingConfig(BaseModel):
     # A known dart whose per-camera pixels have mostly reverted to the empty board is
     # considered removed.
     removal_pixel_fraction: float = 0.6
+    # A known dart counts as moved (wobbled, sagged, knocked) when at least this share of its
+    # pixels changed. Only a moved dart can explain a candidate on its line or a "new" dart
+    # at its spot; next to a dart that sat still, that is a new dart (tight groupings).
+    moved_pixel_fraction: float = 0.25
     # After a takeout seen happening, the empty-board picture is replaced when the board
     # differs from it by less than this fraction of the board region (a few darts' worth:
     # the old picture held darts left in the board at start-up).

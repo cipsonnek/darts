@@ -241,3 +241,17 @@ def test_darts_in_the_board_at_start_do_not_spoil_later_throws() -> None:
     removed = [e for e in later if e.type == EventType.DARTS_REMOVED]
     assert removed and removed[-1].data["board_clear"]
     assert len(eng.board_state) == 1
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("seed, targets", [
+    (10, [(0.0, 103.0), (2.0, 104.5), (-1.5, 102.0)]),
+    (12, [(-31.0, 95.0), (-29.0, 96.5), (-33.0, 93.5)]),
+])
+def test_tight_grouping_thrown_fast_counts_every_dart(seed, targets) -> None:
+    """Three darts 2-3 mm apart, 0.9 s between throws (the first real rig lost the third
+    dart of such rounds: taken for a re-detection of the dart it landed next to)."""
+    r = SimulationRunner(seed=seed, fps=30, width=960, height=540, calibration="truth")
+    steps = [ScenarioStep(1.0 + 0.9 * i, "throw", {"target": t}) for i, t in enumerate(targets)]
+    res = r.run(Scenario("grouping", steps, 5.5))
+    assert sum(e.type == EventType.DART for e in res.events) == 3

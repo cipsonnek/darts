@@ -140,6 +140,7 @@ class VisionEngine:
         # Where missed scenes are kept (set by the service; None: not kept).
         self.scene_dir: Path | None = None
         self._last_dropped: list[dict] = []
+        self._skipped_duplicates: list[dict] = []
         self._last_motion_ts: float | None = None
         self._motion_start_ts: float | None = None
         self._still_since: float | None = None
@@ -434,8 +435,14 @@ class VisionEngine:
         handling = (self._motion_start_ts is not None
                     and ts - self._motion_start_ts >= cfg.tracking.handling_min_motion_s
                     and self._peak_motion >= cfg.tracking.handling_min_peak_fraction)
+        self._skipped_duplicates = []
+        self._last_dropped = []
         new_events = [] if removed or handling else self._detect_new(frames, cams, changes, ts)
         events.extend(new_events)
+        if self._skipped_duplicates or (self._last_dropped and not new_events):
+            # Something was set aside as a known dart: keep the scene, a dart may be lost here.
+            self._keep_scene(frames, cams, changes, ts,
+                             "duplicate" if self._skipped_duplicates else "taken_for_known_dart")
 
         # 4. Nothing recognised but the scene changed.
         significant = [cid for cid, ch in changes.items()
@@ -443,7 +450,8 @@ class VisionEngine:
         if not new_events and not removed:
             if significant:
                 self.stats.unrecognized += 1
-                self._keep_scene(frames, cams, changes, ts)
+                if not self._skipped_duplicates and not self._last_dropped:
+                    self._keep_scene(frames, cams, changes, ts, "unrecognized")
                 events.append(self._emit(EventType.UNRECOGNIZED, ts, {
                     "cameras": significant,
                     "added_pixels": {cid: int(np.count_nonzero(changes[cid].added)) for cid in significant},
@@ -463,13 +471,13 @@ class VisionEngine:
         self._set_state(EngineState.IDLE, ts, events)
 
     def _keep_scene(self, frames: dict[str, Frame], cams: dict[str, CameraContext],
-                    changes: dict[str, ChangeResult], ts: float) -> None:
+                    changes: dict[str, ChangeResult], ts: float, reason: str = "unrecognized") -> None:
         """Save a scene in which something changed but no dart was counted (see
         RecordingConfig.save_missed_scenes). Written in the background."""
         rec = self.config.recording
         if self.scene_dir is None or not rec.save_missed_scenes:
             return
-        stamp = time.strftime("%Y%m%d-%H%M%S") + f"-{int(ts * 1000) % 1000:03d}"
+        stamp = time.strftime("%Y%m%d-%H%M%S") + f"-{int(ts * 1000) % 1000:03d}-{reason}"
         images = {}
         for cid, ctx in cams.items():
             images[f"{cid}_after.png"] = frames[cid].image.copy()
@@ -477,7 +485,8 @@ class VisionEngine:
             if ctx.empty is not None:
                 images[f"{cid}_empty.png"] = ctx.empty.copy()
         meta = {
-            "time": stamp, "ts": ts,
+            "time": stamp, "ts": ts, "reason": reason,
+            "skipped_duplicates": list(self._skipped_duplicates),
             "changes": {cid: {"added_px": int(np.count_nonzero(ch.added)), "threshold": ch.threshold,
                               "noise_sigma": ch.noise_sigma, "shadow_pixels": ch.shadow_pixels}
                         for cid, ch in changes.items()},
@@ -605,7 +614,6 @@ class VisionEngine:
         support: dict[str, np.ndarray] = {}
         occluders: dict[str, np.ndarray] = {}
         moved: list[tuple[KnownDart, str]] = []
-        self._last_dropped = []
         occ_masks = {cid: self.board_state.occluder_mask(cid, frames[cid].image.shape[:2]) for cid in cams}
 
         def _extract(cid: str) -> list[DartCandidate]:
@@ -616,22 +624,25 @@ class VisionEngine:
                                       dart_length_mm=cfg.detection.dart_length_mm)
 
         raw_by_cam = dict(zip(cams, self._pool.map(_extract, list(cams))))
+        for cid, ch in changes.items():
+            if cid in cams:
+                support[cid] = ch.full_mask("changed", frames[cid].image.shape[:2])
         for cid, ctx in cams.items():
-            ch = changes[cid]
-            shape = frames[cid].image.shape[:2]
             occ_full = occ_masks[cid]
             raw = raw_by_cam[cid]
             keep = []
             for c in raw:
                 known = self.board_state.matches_footprint(cid, c)
-                if known is not None:
+                # A fragment on a known dart's line is that dart wobbling only if the dart
+                # itself changed. When it sits still, the fragment is a new dart landing
+                # right in front of or behind it (tight groupings).
+                if known is not None and self._disturbed(known, cid, support, c):
                     moved.append((known, cid))
                     self._last_dropped.append({"camera": cid, "taken_for": known.dart_id, **c.to_dict()})
                     continue
                 keep.append(c)
             ctx.last_candidates = keep
             cands[cid] = keep
-            support[cid] = ch.full_mask("changed", shape)
             occluders[cid] = occ_full
         models = {cid: ctx.model for cid, ctx in cams.items() if ctx.model is not None}
         fused = fuse(models, cands, cfg.fusion, max_tilt_deg=cfg.detection.max_dart_tilt_deg,
@@ -643,8 +654,13 @@ class VisionEngine:
                 break
             near, dist = self.board_state.nearest(f.impact)
             if near is not None and dist < cfg.tracking.duplicate_radius_mm and near.axis is not None \
-                    and f.axis is not None and float(near.axis @ f.axis) > math.cos(math.radians(6)):
-                # Same position and same 3D direction as a known dart: not a new dart.
+                    and f.axis is not None and float(near.axis @ f.axis) > math.cos(math.radians(6)) \
+                    and self._disturbed_in_most(near, support, f):
+                # Same position and direction as a known dart whose own pixels changed: that
+                # dart moved, it is not a new one. (A dart that sat still while this one
+                # appeared next to it is a different dart: tight groupings.)
+                self._skipped_duplicates.append({"impact_mm": [round(float(v), 2) for v in f.impact],
+                                                 "known": near.dart_id, "distance_mm": round(dist, 2)})
                 continue
             payload = self._dart_payload(f, frames, ts)
             dart = KnownDart(payload["dart_id"], f.impact.copy(), ts, payload["score"]["label"],
@@ -660,6 +676,35 @@ class VisionEngine:
             ids = sorted({d.dart_id for d, _ in moved})
             events.append(self._emit(EventType.DART_MOVED, ts, {"dart_ids": ids}))
         return events
+
+    def _disturbed(self, dart: KnownDart, cid: str, changed: dict[str, np.ndarray],
+                   cover: DartCandidate | None = None) -> bool:
+        """Whether a known dart's own pixels changed in this camera since the last still scene
+        (it wobbled, sagged or was knocked). Pixels that ``cover`` (a new dart in front of it)
+        occupies do not count: a dart landing right in front hides the old one without
+        moving it. Unknown (no footprint or mask): assumed yes."""
+        fp = dart.footprints.get(cid)
+        mask = changed.get(cid)
+        if fp is None or mask is None:
+            return True
+        xs, ys = fp.pixel_coords()
+        H, W = mask.shape
+        ok = (xs >= 0) & (xs < W) & (ys >= 0) & (ys < H)
+        xs, ys = xs[ok], ys[ok]
+        if cover is not None:
+            x0, y0, x1, y1 = cover.mask_bbox
+            inside = (xs >= x0) & (xs < x1) & (ys >= y0) & (ys < y1)
+            hidden = np.zeros(len(xs), bool)
+            hidden[inside] = cover.mask[ys[inside] - y0, xs[inside] - x0] > 0
+            xs, ys = xs[~hidden], ys[~hidden]
+        if len(xs) < 10:
+            return False  # all of it hidden by the new dart: nothing says it moved
+        return float((mask[ys, xs] > 0).mean()) >= self.config.tracking.moved_pixel_fraction
+
+    def _disturbed_in_most(self, dart: KnownDart, changed: dict[str, np.ndarray], f: FusedDart | None = None) -> bool:
+        cover = {o.camera_id: o.candidate for o in f.observations} if f is not None else {}
+        votes = [self._disturbed(dart, cid, changed, cover.get(cid)) for cid in dart.footprints if cid in changed]
+        return not votes or sum(votes) * 2 > len(votes)
 
     def _dart_payload(self, f: FusedDart, frames: dict[str, Frame], ts: float) -> dict:
         cfg = self.config
