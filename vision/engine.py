@@ -416,8 +416,16 @@ class VisionEngine:
         self._obstruction_reported = False
         self._obstructed_since = None
 
+        # Someone at the board for a while (pulling darts out) is not a throw.
+        handling = (self._motion_start_ts is not None
+                    and ts - self._motion_start_ts >= cfg.tracking.handling_min_motion_s
+                    and self._peak_motion >= cfg.tracking.handling_min_peak_fraction)
+
         # 2. Removed darts (takeout).
-        removed = self._detect_removed(frames, cams, changes)
+        removed = self._detect_removed(frames, cams, changes if handling else None)
+        if removed and not handling:
+            # A dart taken for removed in a throw: no new darts are looked for in this scene.
+            self._keep_scene(frames, cams, changes, ts, "removed_without_takeout")
         if removed:
             gone = self.board_state.remove([d.dart_id for d in removed])
             clear = len(self.board_state) == 0
@@ -428,13 +436,10 @@ class VisionEngine:
         # 3. New darts. Not in the same still scene as a takeout: the player has to step back
         # before throwing, so that is a later scene. Here the spots the darts left are what
         # changed, and against an empty-board image taken in other light they read as new darts.
-        # Someone at the board for a while (pulling darts out) is not a throw. Also when no
-        # darts are known: darts left in the board at start-up are pulled out unseen, and the
-        # spots they leave differ from an "empty" picture that showed them just as a new
-        # dart differs from a truly empty one.
-        handling = (self._motion_start_ts is not None
-                    and ts - self._motion_start_ts >= cfg.tracking.handling_min_motion_s
-                    and self._peak_motion >= cfg.tracking.handling_min_peak_fraction)
+        # No new darts while someone handles the board, also when no darts are known: darts
+        # left in the board at start-up are pulled out unseen, and the spots they leave
+        # differ from an "empty" picture that showed them just as a new dart differs from a
+        # truly empty one.
         self._skipped_duplicates = []
         self._last_dropped = []
         new_events = [] if removed or handling else self._detect_new(frames, cams, changes, ts)
@@ -574,9 +579,12 @@ class VisionEngine:
     def _detect_removed(self, frames: dict[str, Frame], cams: dict[str, CameraContext],
                         changes: dict[str, ChangeResult] | None = None) -> list[KnownDart]:
         """Known darts that are gone. A camera votes "gone" when the dart's pixels now look
-        like the empty board, or when they changed since the last still scene (the dart was
-        pulled out of them). The second test does not depend on the empty-board picture,
-        which may itself show darts (taken at start-up with darts in the board)."""
+        like the empty board, or (``changes`` given: someone was handling the board) when they
+        changed since the last still scene. The second test does not depend on the
+        empty-board picture, which may itself show darts (taken at start-up with darts in
+        the board); it is not used for a throw, where a new dart landing in front of an old
+        one changes the old one's pixels without removing it (a dart lost that way, and its
+        neighbour dropped from the list, on the first real rig)."""
         if len(self.board_state) == 0:
             return []
         cfg = self.config
