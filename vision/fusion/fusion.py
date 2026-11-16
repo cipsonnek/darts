@@ -219,6 +219,11 @@ def _reject_outliers(f: FusedDart, cfg: FusionConfig) -> FusedDart:
     return f
 
 
+def scale_of(cam: CameraModel) -> float:
+    """Image width relative to the 1280 px the pixel limits are stated for."""
+    return float(cam.image_size[0]) / 1280.0
+
+
 def validate(f: FusedDart, cameras: dict[str, CameraModel], cfg: FusionConfig, max_tilt_deg: float,
              board_radius_mm: float = 225.5) -> str | None:
     """Physical checks a real dart must pass. Returns a rejection reason or None."""
@@ -261,6 +266,13 @@ def validate(f: FusedDart, cameras: dict[str, CameraModel], cfg: FusionConfig, m
             anchored = True
         expected = float((c.factors or {}).get("expected_length_px") or 0.0)
         full = max(L, float(c.length_px), expected)
+        if len(f.observations) == 2 and max(L, float(c.length_px)) < max(80.0 * scale_of(cam), 0.4 * expected)                 and along < -strict:
+            # Two camera lines always cross: a scrap (a flight, a piece of another dart)
+            # paired with a real dart in the other camera makes a phantom dart, often on the
+            # far side of the board (first real rig: 37-72 px scraps with the impact 64-183 px
+            # beyond them). A short sighting counts in a pair only when the impact is at its
+            # visible end; otherwise only a third camera can vouch for it.
+            return f"too little of the dart seen ({o.camera_id})"
         # A tip the camera itself marks as hidden can be a whole barrel away.
         loose = max(strict + max(0.0, expected - L), (0.6 if c.tip_visible else 0.75) * full)
         if along < -loose:
