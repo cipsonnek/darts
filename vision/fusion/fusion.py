@@ -263,7 +263,12 @@ def validate(f: FusedDart, cameras: dict[str, CameraModel], cfg: FusionConfig, m
         if along > 0.45 * L:
             return f"impact not at the observed tip ({o.camera_id})"
         if c.tip_visible and along >= -strict:
-            anchored = True
+            # The anchor's tip, where it meets the board, must be the impact itself: a
+            # visible tip marks the point directly (first real rig: a wrong pairing 23 mm
+            # from the anchor's own tip passed an image-only check, S3 for an S19).
+            on_board = cam.pixel_to_board((float(c.tip_px[0]), float(c.tip_px[1])))
+            if on_board is not None and math.hypot(on_board[0] - f.impact[0], on_board[1] - f.impact[1])                     <= cfg.anchor_tip_mm:
+                anchored = True
         expected = float((c.factors or {}).get("expected_length_px") or 0.0)
         full = max(L, float(c.length_px), expected)
         if len(f.observations) == 2 and max(L, float(c.length_px)) < max(80.0 * scale_of(cam), 0.4 * expected)                 and along < -strict:

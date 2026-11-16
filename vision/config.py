@@ -225,6 +225,9 @@ class FusionConfig(BaseModel):
     max_residual_mm: float = 6.0
     # Angle between two cameras' board lines below which their intersection is unreliable.
     min_line_angle_deg: float = 12.0
+    # A camera that sees the dart's tip marks the impact directly: the fused impact must lie
+    # within this distance of that tip's point on the board for the camera to vouch for it.
+    anchor_tip_mm: float = 8.0
     # Unmodelled error (calibration, line bias) added in quadrature to the fused covariance
     # before computing score probabilities. Calibrated with scripts/benchmark.py.
     model_sigma_mm: float = 0.35
