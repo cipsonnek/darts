@@ -237,6 +237,12 @@ def validate(f: FusedDart, cameras: dict[str, CameraModel], cfg: FusionConfig, m
             return "implausible dart tilt"
         if max(f.residuals_mm.values()) > cfg.max_residual_mm:
             return "cameras disagree"
+    if len(f.observations) >= 2 and not any(o.candidate.tip_visible for o in f.observations):
+        # A dart already in the board, re-read from its upper part (its flight moved when a
+        # new dart hit or brushed it), shows no tip anywhere: on the first real rig every
+        # such "dart" was an old one counted again. A new dart's tip is seen by at least one
+        # of the cameras around the board.
+        return "tip seen by no camera"
     impact3 = np.array([f.impact[0], f.impact[1], 0.0])
     for o in f.observations:
         cam = cameras[o.camera_id]

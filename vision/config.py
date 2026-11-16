@@ -316,7 +316,7 @@ class RecordingConfig(BaseModel):
     # keep that moment: pictures before and after, the empty board and the known darts, so
     # it can be replayed and explained. Kept in <directory>/missed, the newest N.
     save_missed_scenes: bool = True
-    missed_scenes_kept: int = Field(15, ge=1)
+    missed_scenes_kept: int = Field(40, ge=1)
 
 
 class SimulatorConfig(BaseModel):
