@@ -339,6 +339,35 @@ def _axis_candidate(pts_crop, added, diff, bbox, camera, cfg, camera_id, occlude
     s_tip_coarse = float(s_thin.min() if tip_at_low else s_thin.max())
     s_ext = float(s_lo if tip_at_low else s_hi)
     s_tip_coarse = s_ext if abs(s_ext - s_tip_coarse) < 12 * scale else s_tip_coarse
+    # Near the board the dart often reads wider than its shaft (its shadow, motion blur,
+    # the barrel's grip): those slices fail the "thin" test, the axis is fitted to the
+    # upper part only and the tip was placed where the thin part ends - up to 180 px short
+    # on the first real rig, which then failed the impact-at-the-tip check. Follow the
+    # candidate's own pixels beyond it while they continue without a gap; if the tip moves
+    # that way, refit the axis to the whole dart, tail to tip.
+    toward = -1.0 if tip_at_low else 1.0
+    beyond = np.sort((s_all[(s_all - s_tip_coarse) * toward > 0] - s_tip_coarse) * toward)
+    reach = 0.0
+    for v in beyond:
+        if v - reach > 4.0 * step:
+            break
+        reach = float(v)
+    if reach > 12 * scale:
+        s_tip_coarse += toward * reach
+        tail_end = s_hi if tip_at_low else s_lo
+        lo_s, hi_s = sorted((tail_end, s_tip_coarse))
+        sc = axis.project_scalar(centre_pts)
+        whole = (sc >= lo_s - step) & (sc <= hi_s + step)
+        if whole.sum() >= 5:
+            refit = fit_line(centre_pts[whole], 1.0 / np.maximum(cw[whole], 1.0))
+            # Keep the direction sense of the old axis (tip end and tail end as decided).
+            d = refit.direction if float(refit.direction @ axis.direction) >= 0 else -refit.direction
+            tip_pt = axis.at(s_tip_coarse)
+            axis = Line2D(point=refit.point, direction=d)
+            s_all = axis.project_scalar(ideal[band])
+            s_lo, s_hi = float(s_all.min()), float(s_all.max())
+            length = s_hi - s_lo
+            s_tip_coarse = float(axis.project_scalar(tip_pt[None])[0])
     tip_ideal, profile_ok = _refine_tip(axis, s_tip_coarse, -1.0 if tip_at_low else 1.0, diff, offset, camera)
     tail_s = s_hi if tip_at_low else s_lo
     tail_ideal = axis.at(tail_s)

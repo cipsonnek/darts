@@ -237,13 +237,14 @@ def validate(f: FusedDart, cameras: dict[str, CameraModel], cfg: FusionConfig, m
             return "implausible dart tilt"
         if max(f.residuals_mm.values()) > cfg.max_residual_mm:
             return "cameras disagree"
-    if len(f.observations) >= 2 and not any(o.candidate.tip_visible for o in f.observations):
-        # A dart already in the board, re-read from its upper part (its flight moved when a
-        # new dart hit or brushed it), shows no tip anywhere: on the first real rig every
-        # such "dart" was an old one counted again. A new dart's tip is seen by at least one
-        # of the cameras around the board.
-        return "tip seen by no camera"
     impact3 = np.array([f.impact[0], f.impact[1], 0.0])
+    # Two camera lines always cross somewhere, so the impact must also sit where the
+    # cameras saw the dart end. One camera at least (the anchor) must see the dart's tip
+    # right there. The others may see only part of it: a dart on the far side shows its
+    # flight cut off by the frame and its dark barrel lost against the dark board (first
+    # real rig: 60-110 px missing, the impact below the visible part). An old dart re-read
+    # from its upper part (its flight moved when a new dart hit it) has no anchor.
+    anchored = False
     for o in f.observations:
         cam = cameras[o.camera_id]
         c = o.candidate
@@ -253,17 +254,16 @@ def validate(f: FusedDart, cameras: dict[str, CameraModel], cfg: FusionConfig, m
         if L < 1e-6:
             return "degenerate observation"
         along = float((q - c.tip_px) @ seg) / L
-        # The impact must project near the tip end of what this camera saw. When the tip is
-        # hidden (behind darts already in the board, or the flight), the impact lies beyond
-        # the visible end by up to the hidden part of the dart.
-        reach = max(40.0, 0.3 * L)
-        if not c.tip_visible:
-            # The barrel against the dark centre of the board often does not stand out: on
-            # the first real rig 60-110 px of a 140-250 px dart. Other cameras must still
-            # agree on the point in 3D, so a generous reach here admits no stray match.
-            expected = float((c.factors or {}).get("expected_length_px") or 0.0)
-            reach = max(reach + max(0.0, expected - L), 0.6 * max(L, expected))
-        if along < -reach or along > 0.45 * L:
+        strict = max(40.0, 0.3 * L)
+        if along > 0.45 * L:
+            return f"impact not at the observed tip ({o.camera_id})"
+        if c.tip_visible and along >= -strict:
+            anchored = True
+        expected = float((c.factors or {}).get("expected_length_px") or 0.0)
+        full = max(L, float(c.length_px), expected)
+        # A tip the camera itself marks as hidden can be a whole barrel away.
+        loose = max(strict + max(0.0, expected - L), (0.6 if c.tip_visible else 0.75) * full)
+        if along < -loose:
             return f"impact not at the observed tip ({o.camera_id})"
         if f.axis is not None:
             # How far the observed tail reaches out of the board along the 3D axis.
@@ -277,6 +277,8 @@ def validate(f: FusedDart, cameras: dict[str, CameraModel], cfg: FusionConfig, m
                 t_axis = (float(a @ w0) - ab * float(d @ w0)) / den
                 if t_axis < 25.0:
                     return f"observed dart too short above the board ({o.camera_id})"
+    if len(f.observations) >= 2 and not anchored:
+        return "tip seen by no camera"
     return None
 
 
