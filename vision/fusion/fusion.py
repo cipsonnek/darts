@@ -247,8 +247,17 @@ def validate(f: FusedDart, cameras: dict[str, CameraModel], cfg: FusionConfig, m
         if L < 1e-6:
             return "degenerate observation"
         along = float((q - c.tip_px) @ seg) / L
-        # The impact must project near the tip end of what this camera saw.
-        if along < -max(40.0, 0.3 * L) or along > 0.45 * L:
+        # The impact must project near the tip end of what this camera saw. When the tip is
+        # hidden (behind darts already in the board, or the flight), the impact lies beyond
+        # the visible end by up to the hidden part of the dart.
+        reach = max(40.0, 0.3 * L)
+        if not c.tip_visible:
+            # The barrel against the dark centre of the board often does not stand out: on
+            # the first real rig 60-110 px of a 140-250 px dart. Other cameras must still
+            # agree on the point in 3D, so a generous reach here admits no stray match.
+            expected = float((c.factors or {}).get("expected_length_px") or 0.0)
+            reach = max(reach + max(0.0, expected - L), 0.6 * max(L, expected))
+        if along < -reach or along > 0.45 * L:
             return f"impact not at the observed tip ({o.camera_id})"
         if f.axis is not None:
             # How far the observed tail reaches out of the board along the 3D axis.
