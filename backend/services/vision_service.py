@@ -180,49 +180,101 @@ class VisionService:
         return (acc / len(hist)).round().astype(np.uint8)
 
     def _pin_devices(self) -> None:
-        """Tie each USB camera to its physical device (path), once.
+        """Find each USB camera's device.
 
         Windows numbers cameras in the order it finds them and renumbers them when one is
-        plugged in or drops off USB; on a laptop its own webcam takes one of the numbers. A
-        camera without a path takes the device at its number, unless that is a built-in
-        webcam or a device another camera already has: then the first free board camera."""
+        plugged in or drops off USB; on a laptop its own webcam takes one of the numbers.
+        Device paths name the USB port, so they change when cameras are plugged into other
+        ports. What does not change is what a camera sees: a calibrated camera is found as
+        the board camera whose picture its calibration fits. Cameras without a calibration
+        (or that fit nothing) keep their device when it is still there, then take the free
+        board cameras in order. Built-in webcams are never taken."""
         cams = [c for c in self.cfg.cameras if c.enabled and c.source.type == "opencv"]
-        if not any(not c.source.device_path for c in cams):
+        if not cams:
             return
         devices = list_video_devices()
         if not devices:
             return
-        used = {c.source.device_path.lower() for c in cams if c.source.device_path}
-
-        def at(c) -> VideoDevice | None:
-            dev = c.source.device
-            return devices[int(dev)] if dev is not None and str(dev).isdigit() and int(dev) < len(devices) else None
-
-        def pin(c, d: VideoDevice) -> None:
-            used.add(d.path.lower())
-            self.update_camera_config_only(c.id, {"source": {**c.source.model_dump(), "device": d.index,
-                                                             "device_path": d.path}})
-
-        todo = [c for c in cams if not c.source.device_path]
-        # First every camera whose number shows a usable device keeps it, then the rest
-        # share what is left: one webcam must not shift all the cameras after it.
-        rest = []
-        for c in todo:
-            d = at(c)
-            if d is not None and d.path and not d.built_in and d.path.lower() not in used:
-                pin(c, d)
-            else:
-                rest.append(c)
-        for c in rest:
-            d = next((x for x in devices if x.path and not x.built_in and x.path.lower() not in used), None)
+        board_devs = [d for d in devices if d.path and not d.built_in]
+        by_path = {d.path.lower(): d for d in board_devs}
+        assigned: dict[str, VideoDevice] = {}
+        for c, d in self._match_by_picture(cams, board_devs):
+            assigned[c.id] = d
+        taken = {d.path.lower() for d in assigned.values()}
+        for c in cams:  # not recognised: the same device as before, if still there and free
+            if c.id in assigned:
+                continue
+            d = by_path.get((c.source.device_path or "").lower())
+            if d is None and not c.source.device_path and c.source.device is not None and str(c.source.device).isdigit():
+                n = int(c.source.device)
+                d = devices[n] if n < len(devices) and devices[n] in board_devs else None
+            if d is not None and d.path.lower() not in taken:
+                assigned[c.id] = d
+                taken.add(d.path.lower())
+        for c in cams:  # the rest: free board cameras in order
+            if c.id in assigned:
+                continue
+            d = next((x for x in board_devs if x.path.lower() not in taken), None)
             if d is None:
                 continue
-            was = at(c)
-            log.warning("camera moved to another device", extra={
-                "camera": c.id, "was": c.source.device, "was_name": was.name if was else None, "now": d.index})
-            pin(self.camera(c.id), d)
+            assigned[c.id] = d
+            taken.add(d.path.lower())
+        for c in cams:
+            d = assigned.get(c.id)
+            if d is None:
+                continue
+            if (c.source.device_path or "").lower() != d.path.lower() or c.source.device != d.index:
+                log.warning("camera device changed", extra={"camera": c.id, "was": c.source.device, "now": d.index})
+                self.update_camera_config_only(c.id, {"source": {**c.source.model_dump(), "device": d.index,
+                                                                 "device_path": d.path}})
         log.info("camera devices", extra={"devices": [f"{d.index}: {d.name}" for d in devices],
                                           "cameras": {c.id: c.source.device for c in self.cfg.cameras}})
+
+    def _match_by_picture(self, cams: list[CameraConfig], free: list[VideoDevice]
+                          ) -> list[tuple[CameraConfig, VideoDevice]]:
+        """Pair cameras with board devices by picture: each device's picture is checked
+        against each camera's calibration (share of the board's edges where the calibration
+        expects them), best fits first. Cameras without a calibration, or that fit no
+        picture, are left out."""
+        if not cams or not free or not any(self.store.camera_model(c.id) is not None for c in cams):
+            return []
+        from vision.calibration.refine import EdgeAligner, to_linear
+
+        aligner = EdgeAligner(self.board)
+        pictures: dict[int, np.ndarray] = {}
+        for d in free:
+            img = _grab(d.index, self.camera(cams[0].id))
+            if img is not None:
+                pictures[d.index] = img
+        scores: list[tuple[float, int, int]] = []
+        for ci, c in enumerate(cams):
+            model = self.store.camera_model(c.id)
+            if model is None:
+                continue
+            for di, d in enumerate(free):
+                img = pictures.get(d.index)
+                if img is None:
+                    continue
+                if (img.shape[1], img.shape[0]) != tuple(model.image_size):
+                    img = cv2.resize(img, tuple(model.image_size), interpolation=cv2.INTER_AREA)
+                m = aligner.measure(to_linear(img), model, 4.0)
+                visible = int(m.visible.sum())
+                fit = float((m.valid & (np.abs(m.offsets) <= 2.0)).sum() / visible) if visible >= 50 else 0.0
+                scores.append((fit, ci, di))
+        log.info("camera picture fits", extra={"fits": {f"{cams[ci].id}@{free[di].index}": round(f, 3)
+                                                         for f, ci, di in scores}})
+        pairs: list[tuple[CameraConfig, VideoDevice]] = []
+        taken_c: set[int] = set()
+        taken_d: set[int] = set()
+        for fit, ci, di in sorted(scores, reverse=True):
+            if fit < 0.2 or ci in taken_c or di in taken_d:
+                continue
+            log.info("camera recognised by its picture", extra={"camera": cams[ci].id, "device": free[di].index,
+                                                                "fit": round(fit, 3)})
+            pairs.append((cams[ci], free[di]))
+            taken_c.add(ci)
+            taken_d.add(di)
+        return pairs
 
     def update_camera(self, camera_id: str, patch: dict[str, Any]) -> dict:
         cur = self.camera(camera_id)
@@ -914,3 +966,23 @@ def _gpu_info() -> dict | None:
         return {"nvidia": out}
     except Exception:  # noqa: BLE001
         return None
+
+
+def _grab(index: int, cfg: CameraConfig) -> np.ndarray | None:
+    """One settled frame from a DirectShow device that nothing else holds open."""
+    cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
+    try:
+        if not cap.isOpened():
+            return None
+        if cfg.source.fourcc:
+            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*cfg.source.fourcc))
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, cfg.width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, cfg.height)
+        img = None
+        for _ in range(15):  # the first frames are dark while exposure settles
+            ok, frame = cap.read()
+            if ok and frame is not None:
+                img = frame
+        return img
+    finally:
+        cap.release()
