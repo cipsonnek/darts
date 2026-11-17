@@ -1,5 +1,25 @@
 # DartSense — wdrożenie panelu operatora na serwerze
 
+> **Dla administratora serwera — w skrócie**
+>
+> - Co to jest: aplikacja w Pythonie (FastAPI + SQLite), działa jako usługa systemd
+>   `dartsense-central`, słucha **tylko na 127.0.0.1:8100**; na zewnątrz wystawia ją
+>   reverse proxy (nginx lub Apache) pod osobną subdomeną. Istniejących stron nie zmienia.
+> - Wymagania: Linux (Ubuntu 22.04/24.04 lub Debian 12), Python 3.10+ (skrypt doinstaluje),
+>   ~1 GB dysku, ~300–500 MB RAM, otwarte porty 80 i 443, dostęp root/sudo.
+>   Nic nie musi być otwarte poza 80/443.
+> - Instalacja: rekord DNS (krok 0) → wgranie paczki (krok 1) → **jedno polecenie**
+>   `sudo bash deploy/install.sh SUBDOMENA` (krok 2) → konto dla właściciela (krok 3).
+>   Czas: ok. 15 minut + propagacja DNS.
+> - Po instalacji prześlij właścicielowi: **adres panelu** oraz **login i hasło** konta z kroku 3
+>   (hasło inną drogą niż login).
+> - Przed instalacją ustal z właścicielem **nazwę subdomeny** (w przykładach
+>   `darts.wulkan-lawa.pl`).
+> - Paczka była sprawdzona w trybie serwera (start, logowanie, dodanie lokalu i tarczy,
+>   meldunek tarczy). Sam skrypt `install.sh` nie był jeszcze uruchamiany na tym serwerze —
+>   jeśli któryś krok się nie powiedzie, skrypt pokazuje, co sprawdzić, a ręczne odpowiedniki
+>   są opisane niżej (usługa, nginx/Apache, panel hostingowy).
+
 Ta paczka to **serwer centralny**: panel operatora (lokale, tarcze, statystyki, rozliczenia,
 serwis), do którego tarcze w lokalach wysyłają swoje dane. Na serwer **nie** trafia program
 tarczy z kamerami — ten działa na komputerze przy tarczy.
@@ -58,8 +78,10 @@ warunki Let's Encrypt). Można go bezpiecznie uruchomić ponownie.
 ## Krok 3 — konto do panelu
 
 ```bash
-sudo bash /opt/dartsense/deploy/users.sh add szymon --name "Szymon"
+sudo bash /opt/dartsense/deploy/users.sh add LOGIN --name "Imię Nazwisko"
 ```
+
+(`LOGIN` i imię ustal z właścicielem panelu.)
 
 Zapyta dwa razy o hasło (min. 8 znaków). Kolejne osoby — to samo z innym loginem.
 Inne polecenia: `passwd LOGIN` (nowe hasło), `list`, `disable LOGIN`, `enable LOGIN`.
