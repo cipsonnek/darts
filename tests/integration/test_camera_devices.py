@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 import yaml
 
 import backend.services.vision_service as vs
@@ -11,6 +12,12 @@ from vision.geometry.board import BoardGeometry
 
 BOARD = [f"usb#vid_0bdc&pid_8088&mi_00#7&{n}&0&0000#global" for n in ("aaa", "bbb", "ccc")]
 WEBCAM = "usb#vid_0c45&pid_6a09&mi_00#7&ddd&0&0000#global"
+
+
+@pytest.fixture(autouse=True)
+def _no_real_cameras(monkeypatch):
+    """Never open this machine's cameras; tests that need pictures set their own _grab."""
+    monkeypatch.setattr(vs, "_grab", lambda index, _cfg: None)
 
 
 def _service(tmp_path, devices: list[int]) -> vs.VisionService:
@@ -86,3 +93,19 @@ def test_cameras_are_recognised_by_their_picture(tmp_path, monkeypatch, sim_rig)
     got = {c.id: c.source.device for c in svc.cfg.cameras}
     assert got == {"cam1": 2, "cam2": 3, "cam3": 1}
     assert {c.source.device_path for c in svc.cfg.cameras} == set(new_paths)
+
+
+def test_device_with_a_black_picture_is_left_out(tmp_path, monkeypatch) -> None:
+    """An all-in-one PC's own webcam, shutter closed, has a name the program does not know as
+    built-in; its black picture keeps it off the board."""
+    import numpy as np
+
+    monkeypatch.setattr(vs, "list_video_devices",
+                        lambda: [VideoDevice(0, "HP Wide Vision HD Camera", "usb#hp#0"),
+                                 *[VideoDevice(i + 1, "720p web cam", p) for i, p in enumerate(BOARD)]])
+    rng = np.random.default_rng(0)
+    monkeypatch.setattr(vs, "_grab", lambda index, _cfg: np.zeros((72, 128, 3), np.uint8) if index == 0
+                        else rng.integers(0, 255, (72, 128, 3), dtype=np.uint8))
+    svc = _service(tmp_path, [0, 1, 2])
+    svc._pin_devices()
+    assert sorted(c.source.device for c in svc.cfg.cameras) == [1, 2, 3]

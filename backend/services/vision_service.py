@@ -196,9 +196,17 @@ class VisionService:
         if not devices:
             return
         board_devs = [d for d in devices if d.path and not d.built_in]
+        # One frame from each: a black picture is a camera that cannot see (a laptop or
+        # all-in-one's own webcam with its privacy shutter closed, a virtual camera). Such a
+        # device was taken as a board camera on the first real board PC.
+        pictures = {d.index: img for d in board_devs if (img := _grab(d.index, self.camera(cams[0].id))) is not None}
+        blind = [d for d in board_devs if d.index in pictures and float(pictures[d.index].std()) < 3.0]
+        if blind:
+            log.warning("devices with a black picture left out", extra={"devices": [f"{d.index}: {d.name}" for d in blind]})
+            board_devs = [d for d in board_devs if d not in blind]
         by_path = {d.path.lower(): d for d in board_devs}
         assigned: dict[str, VideoDevice] = {}
-        for c, d in self._match_by_picture(cams, board_devs):
+        for c, d in self._match_by_picture(cams, board_devs, pictures):
             assigned[c.id] = d
         taken = {d.path.lower() for d in assigned.values()}
         for c in cams:  # not recognised: the same device as before, if still there and free
@@ -230,8 +238,8 @@ class VisionService:
         log.info("camera devices", extra={"devices": [f"{d.index}: {d.name}" for d in devices],
                                           "cameras": {c.id: c.source.device for c in self.cfg.cameras}})
 
-    def _match_by_picture(self, cams: list[CameraConfig], free: list[VideoDevice]
-                          ) -> list[tuple[CameraConfig, VideoDevice]]:
+    def _match_by_picture(self, cams: list[CameraConfig], free: list[VideoDevice],
+                          pictures: dict[int, np.ndarray] | None = None) -> list[tuple[CameraConfig, VideoDevice]]:
         """Pair cameras with board devices by picture: each device's picture is checked
         against each camera's calibration (share of the board's edges where the calibration
         expects them), best fits first. Cameras without a calibration, or that fit no
@@ -241,11 +249,12 @@ class VisionService:
         from vision.calibration.refine import EdgeAligner, to_linear
 
         aligner = EdgeAligner(self.board)
-        pictures: dict[int, np.ndarray] = {}
-        for d in free:
-            img = _grab(d.index, self.camera(cams[0].id))
-            if img is not None:
-                pictures[d.index] = img
+        if pictures is None:
+            pictures = {}
+            for d in free:
+                img = _grab(d.index, self.camera(cams[0].id))
+                if img is not None:
+                    pictures[d.index] = img
         scores: list[tuple[float, int, int]] = []
         for ci, c in enumerate(cams):
             model = self.store.camera_model(c.id)
