@@ -25,6 +25,11 @@ _APIS = {
 }
 
 
+def _fourcc(cap: cv2.VideoCapture) -> str:
+    v = int(cap.get(cv2.CAP_PROP_FOURCC))
+    return "".join(chr((v >> 8 * i) & 0xFF) for i in range(4)).strip("\x00 ")
+
+
 def default_api() -> int:
     system = platform.system()
     if system == "Windows":
@@ -65,16 +70,29 @@ class OpenCVCamera(Camera):
 
     def open(self) -> None:
         target, api = self._target()
+        cfg = self.config
+        want = cfg.source.fourcc if cfg.source.fourcc and cfg.source.type == "opencv" else None
         cap = cv2.VideoCapture(target, api)
         if not cap.isOpened():
             cap.release()
             raise CameraError(f"{self.camera_id}: cannot open {target!r}")
-        cfg = self.config
-        if cfg.source.fourcc and cfg.source.type == "opencv":
-            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*cfg.source.fourcc))
+        if int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) <= 0:
+            # "Open" but with every property -1: the device or its driver is in a bad state
+            # (seen with a third camera on an overloaded USB adapter). Reading from it in a
+            # loop is what preceded a frozen PC; let it go and retry later.
+            cap.release()
+            raise CameraError(f"{self.camera_id}: urządzenie {target!r} nie odpowiada poprawnie (USB?)")
+        # Size first, then format. Format first left cheap 720p cameras in uncompressed YUY2
+        # (~440 Mbit/s at 1280x720: three do not fit on one USB adapter, each gives a few
+        # frames per second); in this order they switch to MJPG at 30 fps.
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, cfg.width)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, cfg.height)
         cap.set(cv2.CAP_PROP_FPS, cfg.fps)
+        if want and _fourcc(cap) != want:
+            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*want))
+        if want and _fourcc(cap) != want:
+            log.warning("camera stays uncompressed", extra={"camera": self.camera_id, "format": _fourcc(cap),
+                                                             "wanted": want})
         # Keep the driver queue short so we always process a recent frame.
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         with self._lock:
@@ -145,6 +163,7 @@ class OpenCVCamera(Camera):
             "white_balance": float(cap.get(cv2.CAP_PROP_WB_TEMPERATURE)),
             "autofocus": float(cap.get(cv2.CAP_PROP_AUTOFOCUS)),
             "focus": float(cap.get(cv2.CAP_PROP_FOCUS)),
+            "format": _fourcc(cap),
             "backend": cap.getBackendName(),
         }
 
