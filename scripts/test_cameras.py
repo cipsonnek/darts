@@ -32,10 +32,12 @@ def fourcc_name(cap: cv2.VideoCapture) -> str:
 
 
 def configure(cap: cv2.VideoCapture, width: int, height: int, fps: int) -> None:
-    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+    # Same order as the board program: size first, then format (cheap 720p cameras stay in
+    # uncompressed YUY2 when the format comes first).
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
     cap.set(cv2.CAP_PROP_FPS, fps)
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
 
 
 def alone() -> list[int]:
